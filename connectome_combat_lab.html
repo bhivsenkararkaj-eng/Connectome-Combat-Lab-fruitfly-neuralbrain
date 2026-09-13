@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connectome Combat Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --bg:#05070c;
+    --panel:#0b0f18;
+    --panel2:#0e1421;
+    --border:rgba(140,255,220,0.10);
+    --border-soft:rgba(255,255,255,0.06);
+    --text:#dce9f0;
+    --text-dim:#7d8ba0;
+    --text-faint:#4a5568;
+    --ach:#4ce6da;
+    --gaba:#ff5fc4;
+    --glu:#ffb648;
+    --dop:#9dff4c;
+    --ser:#b46bff;
+    --oct:#ff7a4d;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:'Space Grotesk',system-ui,sans-serif;overflow:hidden;}
+  .mono{font-family:'IBM Plex Mono',ui-monospace,monospace;}
+  #app{display:grid;grid-template-rows:auto 1fr auto;height:100vh;width:100vw;}
+
+  /* ---- Header ---- */
+  header{
+    display:flex;align-items:baseline;gap:14px;
+    padding:14px 20px 12px 22px;
+    border-bottom:1px solid var(--border-soft);
+    background:linear-gradient(180deg, #070a11 0%, #05070c 100%);
+    z-index:5;
+  }
+  header h1{
+    font-size:19px;font-weight:600;letter-spacing:0.2px;margin:0;color:#eef7f5;
+  }
+  header h1 span{color:var(--ach);}
+  header .tagline{font-size:12.5px;color:var(--text-dim);margin:0;}
+  header .datatag{
+    margin-left:auto;font-size:11px;color:var(--text-faint);
+    text-align:right;line-height:1.5;
+  }
+  header .datatag b{color:var(--text-dim);font-weight:500;}
+
+  /* ---- Main layout ---- */
+  main{display:grid;grid-template-columns:1fr 360px;min-height:0;}
+  #viewport-wrap{position:relative;min-height:0;border-right:1px solid var(--border-soft);}
+  #canvas-holder{position:absolute;inset:0;}
+  canvas{display:block;width:100%;height:100%;}
+
+  .hud{
+    position:absolute;top:14px;left:16px;right:16px;
+    display:flex;justify-content:space-between;gap:16px;
+    pointer-events:none;
+  }
+  .fly-card{
+    pointer-events:auto;
+    background:rgba(9,13,20,0.72);backdrop-filter:blur(6px);
+    border:1px solid var(--border-soft);border-radius:var(--radius);
+    padding:10px 14px;min-width:190px;
+  }
+  .fly-card.b{text-align:right;}
+  .fly-card .name{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .fly-card.b .name{justify-content:flex-end;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;}
+  .hp-track{
+    height:6px;border-radius:4px;background:#171d29;margin-top:7px;overflow:hidden;
+    border:1px solid var(--border-soft);
+  }
+  .hp-fill{height:100%;border-radius:4px;transition:width .12s linear;}
+  .fly-meta{font-size:10.5px;color:var(--text-dim);margin-top:6px;display:flex;gap:10px;}
+  .fly-card.b .fly-meta{justify-content:flex-end;}
+  .fly-meta b{color:var(--text);font-weight:500;}
+
+  .center-banner{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-56%);
+    text-align:center;pointer-events:none;opacity:0;transition:opacity .25s ease;
+  }
+  .center-banner.show{opacity:1;}
+  .center-banner .win{font-size:26px;font-weight:700;letter-spacing:0.3px;}
+  .center-banner .sub{font-size:12px;color:var(--text-dim);margin-top:4px;}
+
+  .gen-strip{
+    position:absolute;bottom:14px;left:16px;
+    display:flex;gap:8px;pointer-events:none;
+  }
+  .pill{
+    background:rgba(9,13,20,0.72);border:1px solid var(--border-soft);
+    border-radius:20px;padding:5px 12px;font-size:11px;color:var(--text-dim);
+  }
+  .pill b{color:var(--text);font-weight:600;}
+
+  .camera-hint{
+    position:absolute;bottom:14px;right:16px;font-size:10.5px;color:var(--text-faint);
+    background:rgba(9,13,20,0.55);border-radius:20px;padding:5px 12px;
+    border:1px solid var(--border-soft);
+  }
+
+  /* ---- Sidebar ---- */
+  #sidebar{display:flex;flex-direction:column;min-height:0;background:var(--panel);}
+  .tabs{display:flex;border-bottom:1px solid var(--border-soft);flex:none;}
+  .tab{
+    flex:1;padding:11px 4px;text-align:center;font-size:11.5px;color:var(--text-dim);
+    cursor:pointer;border-bottom:2px solid transparent;user-select:none;
+    transition:color .15s ease;
+  }
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--ach);border-bottom-color:var(--ach);}
+  .panels{flex:1;min-height:0;overflow-y:auto;padding:16px 16px 20px;}
+  .panels::-webkit-scrollbar{width:6px;}
+  .panels::-webkit-scrollbar-thumb{background:#1c2433;border-radius:3px;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .section-title{
+    font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-faint);
+    margin:0 0 10px;font-weight:500;
+  }
+  .card{
+    background:var(--panel2);border:1px solid var(--border-soft);border-radius:var(--radius);
+    padding:13px 14px;margin-bottom:12px;
+  }
+  .card p{margin:0;font-size:12px;color:var(--text-dim);line-height:1.55;}
+  .row{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin:6px 0;}
+  .row .k{color:var(--text-dim);}
+  .row .v{color:var(--text);font-weight:500;}
+
+  .bar-row{margin:8px 0;}
+  .bar-row .lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:3px;}
+  .bar-row .lbl b{color:var(--text);font-weight:500;}
+  .bar-track{height:6px;background:#141a26;border-radius:3px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:3px;}
+
+  .neuron-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:7px 0;border-bottom:1px solid var(--border-soft);font-size:11.5px;
+    cursor:default;
+  }
+  .neuron-row:last-child{border-bottom:none;}
+  .neuron-row .tag{font-family:'IBM Plex Mono',monospace;color:var(--text);}
+  .neuron-row .fn{color:var(--text-faint);font-size:10.5px;}
+  .neuron-row .cnt{color:var(--text-dim);font-family:'IBM Plex Mono',monospace;font-size:10.5px;}
+
+  #hiddenCanvas, #fitnessCanvas{width:100%;display:block;border-radius:6px;background:#080b12;}
+
+  .switcher{display:flex;gap:6px;margin-bottom:12px;}
+  .switcher button{
+    flex:1;padding:6px 0;font-size:11px;border-radius:6px;border:1px solid var(--border-soft);
+    background:transparent;color:var(--text-dim);cursor:pointer;font-family:inherit;
+  }
+  .switcher button.active{color:#05070c;font-weight:600;border-color:transparent;}
+
+  .note{font-size:10.5px;color:var(--text-faint);line-height:1.6;margin-top:2px;}
+
+  /* ---- Footer controls ---- */
+  footer{
+    border-top:1px solid var(--border-soft);background:#070a11;
+    padding:12px 20px;display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+  }
+  .ctrl-group{display:flex;align-items:center;gap:9px;}
+  .ctrl-group label{font-size:11px;color:var(--text-dim);white-space:nowrap;}
+  button.primary{
+    background:var(--ach);color:#05070c;border:none;border-radius:7px;
+    padding:9px 18px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;
+    transition:filter .12s ease;
+  }
+  button.primary:hover{filter:brightness(1.1);}
+  button.primary:disabled{opacity:0.35;cursor:not-allowed;}
+  button.ghost{
+    background:transparent;border:1px solid var(--border-soft);color:var(--text-dim);
+    border-radius:7px;padding:9px 14px;font-size:12px;cursor:pointer;font-family:inherit;
+  }
+  button.ghost:hover{color:var(--text);border-color:var(--border);}
+
+  .toggle{
+    position:relative;width:38px;height:20px;border-radius:12px;background:#1a2130;
+    cursor:pointer;border:1px solid var(--border-soft);flex:none;
+  }
+  .toggle .knob{
+    position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:var(--text-dim);transition:all .16s ease;
+  }
+  .toggle.on{background:rgba(76,230,218,0.18);border-color:var(--ach);}
+  .toggle.on .knob{left:20px;background:var(--ach);}
+
+  input[type=range]{
+    -webkit-appearance:none;width:100px;height:3px;background:#1a2130;border-radius:2px;outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--ach);cursor:pointer;
+  }
+  .val{font-size:11px;color:var(--text);font-family:'IBM Plex Mono',monospace;min-width:26px;}
+
+  @media (max-width:860px){
+    main{grid-template-columns:1fr;grid-template-rows:1fr auto;}
+    #viewport-wrap{border-right:none;border-bottom:1px solid var(--border-soft);min-height:280px;}
+    #sidebar{max-height:40vh;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>Connectome <span>Combat</span> Lab</h1>
+    <p class="tagline">Neuroevolution sandbox built on real male <em>Drosophila</em> connectome cell identities</p>
+    <div class="datatag">
+      <div><b id="tagNeuronCount">—</b> real classified neurons loaded</div>
+      <div>source: FlyWire male CNS annotation export</div>
+    </div>
+  </header>
+
+  <main>
+    <div id="viewport-wrap">
+      <div id="canvas-holder"></div>
+
+      <div class="hud">
+        <div class="fly-card a">
+          <div class="name"><span class="dot" style="background:var(--ach)"></span>Lineage A <span id="genA" class="mono" style="color:var(--text-faint);font-weight:400;">gen 1</span></div>
+          <div class="hp-track"><div class="hp-fill" id="hpA" style="width:100%;background:var(--ach);"></div></div>
+          <div class="fly-meta"><span>energy <b id="enA">100</b></span><span>wins <b id="winA">0</b></span></div>
+        </div>
+        <div class="fly-card b">
+          <div class="name">Lineage B <span id="genB" class="mono" style="color:var(--text-faint);font-weight:400;">gen 1</span><span class="dot" style="background:var(--gaba)"></span></div>
+          <div class="hp-track"><div class="hp-fill" id="hpB" style="width:100%;background:var(--gaba);margin-left:auto;"></div></div>
+          <div class="fly-meta"><span>wins <b id="winB">0</b></span><span>energy <b id="enB">100</b></span></div>
+        </div>
+      </div>
+
+      <div class="center-banner" id="banner">
+        <div class="win" id="bannerText">Lineage A wins</div>
+        <div class="sub" id="bannerSub">evolving next generation…</div>
+      </div>
+
+      <div class="gen-strip">
+        <div class="pill">duel <b id="duelCount">0</b></div>
+        <div class="pill">streak <b id="streak">—</b></div>
+        <div class="pill" id="statePill">idle</div>
+      </div>
+
+      <div class="camera-hint">drag to orbit · scroll to zoom</div>
+    </div>
+
+    <div id="sidebar">
+      <div class="tabs">
+        <div class="tab active" data-panel="duel">Duel</div>
+        <div class="tab" data-panel="brain">Brain</div>
+        <div class="tab" data-panel="circuit">Circuit</div>
+        <div class="tab" data-panel="dataset">Dataset</div>
+      </div>
+
+      <div class="panels">
+        <div class="panel active" id="panel-duel">
+          <p class="section-title">Fitness this duel</p>
+          <div class="card">
+            <div class="row"><span class="k">damage dealt</span><span class="v mono" id="fDamage">A 0 · B 0</span></div>
+            <div class="row"><span class="k">damage avoided</span><span class="v mono" id="fAvoid">A 0 · B 0</span></div>
+            <div class="row"><span class="k">time survived</span><span class="v mono" id="fTime">0.0s</span></div>
+          </div>
+
+          <p class="section-title">Fitness history</p>
+          <div class="card">
+            <canvas id="fitnessCanvas" height="90"></canvas>
+            <p style="margin-top:8px;">Score per lineage across recent duels — cyan (A) vs magenta (B). Rising lines mean tactics are compounding.</p>
+          </div>
+
+          <p class="section-title">Lineage record</p>
+          <div class="card">
+            <div class="row"><span class="k">lineage A generation</span><span class="v" id="statGenA">1</span></div>
+            <div class="row"><span class="k">lineage B generation</span><span class="v" id="statGenB">1</span></div>
+            <div class="row"><span class="k">mutation rate</span><span class="v" id="statMut">12%</span></div>
+            <div class="row"><span class="k">total duels</span><span class="v" id="statDuels">0</span></div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-brain">
+          <p class="section-title">Inspecting</p>
+          <div class="switcher">
+            <button id="btnInspA" class="active" style="color:#05070c;background:var(--ach);">Lineage A</button>
+            <button id="btnInspB">Lineage B</button>
+          </div>
+
+          <p class="section-title">Sensory input</p>
+          <div class="card" id="inputBars"></div>
+
+          <p class="section-title">Hidden layer activity</p>
+          <div class="card">
+            <canvas id="hiddenCanvas" height="120"></canvas>
+            <p style="margin-top:8px;">9 hidden units of a small feed-forward net — this is an evolved weight matrix, not measured synaptic activity.</p>
+          </div>
+
+          <p class="section-title">Motor output</p>
+          <div class="card" id="outputBars"></div>
+        </div>
+
+        <div class="panel" id="panel-circuit">
+          <p class="section-title">Sensory layer — real visual projection neurons</p>
+          <div class="card"><div id="sensoryList"></div></div>
+          <p class="section-title">Motor layer — real descending neurons</p>
+          <div class="card"><div id="motorList"></div></div>
+          <p class="note">Each input/output unit borrows the identity and real cell count of an actual neuron type from the connectome dataset. The pairing of neuron → game function is illustrative, not a claim about that neuron's real role.</p>
+        </div>
+
+        <div class="panel" id="panel-dataset">
+          <p class="section-title">Neuron classes (super_class)</p>
+          <div class="card" id="superClassBars"></div>
+          <p class="section-title">Neurotransmitter (top_nt)</p>
+          <div class="card" id="ntBars"></div>
+          <div class="card">
+            <p><b style="color:var(--text);">What's real here:</b> every point in the 3D nebula behind the arena is an actual neuron's soma position from the published male <em>Drosophila</em> whole-brain connectome, colour-coded by its real class. Cell type names in the Circuit tab are real, dataset-verified identities.</p>
+            <p style="margin-top:8px;"><b style="color:var(--text);">What's simulated:</b> this file contains neuron annotations, not synapse weights — so the connection strengths that drive behaviour are evolved by the genetic algorithm, not measured from real synapses. Depth (z) in the nebula is visually stretched ~4× since the real dataset is comparatively flat on that axis.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <button class="primary" id="btnNext">Start duel</button>
+    <div class="ctrl-group">
+      <label>auto-run</label>
+      <div class="toggle" id="toggleAuto"><div class="knob"></div></div>
+    </div>
+    <div class="ctrl-group">
+      <label>speed</label>
+      <input type="range" id="rngSpeed" min="0.5" max="3" step="0.25" value="1">
+      <span class="val" id="valSpeed">1.0×</span>
+    </div>
+    <div class="ctrl-group">
+      <label>mutation rate</label>
+      <input type="range" id="rngMut" min="2" max="40" step="1" value="12">
+      <span class="val" id="valMut">12%</span>
+    </div>
+    <button class="ghost" id="btnReset">Reset lineages</button>
+  </footer>
+
+</div>
+
+<script>
+const NEURON_META = {"total_neurons":139248,"super_class_counts":{"central":32383,"visual_projection":8038,"endocrine":80,"descending":1303,"optic":77541,"motor":110,"visual_centrifugal":524,"sensory":16907,"ascending":1750,"sensory_ascending":612},"nt_counts":{"acetylcholine":86193,"glutamate":24875,"gaba":19171,"serotonin":2282,"dopamine":5909,"octopamine":216,"unknown":602},"top_visual_types":[["LC12",380],["TmY14",370],["LC17",276],["MeTu1",244],["LLPC2",235],["LC10a",234],["LLPC1",219],["LPLC2",210],["LLPC3",204],["LC18",188],["LC10d",188],["LC9",179],["LPC1",164],["LC16",151],["MeTu3c",151],["LC13",145],["LPLC1",140],["MeTu4a",131],["LC21",130],["LC11",127],["LC6",125],["LPC2",116],["LPLC4",110],["LC15",106]],"top_descending_types":[["DNg12_b",18],["DNpe008",18],["DNge091",17],["DNg07",16],["DNge071",16],["DNge094",14],["DNg08_a",14],["DNg106",14],["DNge019",12],["DNg10",12],["DNp17",12],["DNge085",11],["DNg06",11],["DNg03",10],["DNpe015",10],["DNpe009",8],["DNg12_a",8],["DNg12_e",8],["DNge020",8],["DNg08_b",8],["DNpe054",8],["DNpe012",8],["DNg01",8],["DNge115",8]],"top_sensory_types":[["R1-6",8452],["R7",1342],["R8",1324],["BM_InOm",1113],["JO-FV",170],["ORN_DA1",126],["LB3",122],["JO-B1_a",106],["ORN_VA1d",97],["ORN_VA1v",94],["ORN_DL3",79],["ORN_VL1",78],["ORN_VM4",75],["BM_Taste",72],["ORN_VL2a",71],["JO-EV1",70]],"top_motor_types":[["CEM",6],["CB0705",4],["CB0720",4],["CB0918",4],["CB0762",4],["CB2748",4],["CB0845",4],["MN10",3],["MNx01",3],["CB0004",2],["MNx03",2],["CB0700",2],["CB0701",2],["CB0703",2],["CB0706",2],["CB0708",2]],"bounds":{"x":[21906.0,225720.0],"y":[12840.0,110722.0],"z":[16.0,6968.0]}}
+;
+const NEURON_POINTS = [{"x":120496,"y":80359,"z":5027,"sc":"descending","nt":"na","ct":"DNg02_b"},{"x":127042,"y":79119,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":151560,"y":29216,"z":4030,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":206056,"y":71074,"z":4141,"sc":"optic","nt":"acetylcholine","ct":"Tm2"},{"x":55377,"y":56424,"z":3938,"sc":"optic","nt":"acetylcholine","ct":"L3"},{"x":95197,"y":50861,"z":5137,"sc":"central","nt":"gaba","ct":"AVLP535"},{"x":97280,"y":69744,"z":3982,"sc":"visual_projection","nt":"acetylcholine","ct":"LC17"},{"x":145998,"y":88062,"z":1718,"sc":"central","nt":"acetylcholine","ct":"CB2353"},{"x":129454,"y":81672,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_SAD_32"},{"x":112830,"y":86104,"z":4189,"sc":"descending","nt":"acetylcholine","ct":"DNge093"},{"x":132399,"y":83729,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_PVLP_10"},{"x":97720,"y":76880,"z":3603,"sc":"descending","nt":"acetylcholine","ct":"DNge042"},{"x":77315,"y":54835,"z":5774,"sc":"optic","nt":"acetylcholine","ct":"T5d"},{"x":102876,"y":65047,"z":5356,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01a"},{"x":148351,"y":22249,"z":3080,"sc":"central","nt":"acetylcholine","ct":"SMP362"},{"x":59973,"y":73369,"z":3340,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":134457,"y":82203,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":""},{"x":102400,"y":28384,"z":4980,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":74875,"y":54413,"z":4857,"sc":"optic","nt":"gaba","ct":"C2"},{"x":107240,"y":81176,"z":3555,"sc":"descending","nt":"gaba","ct":"DNg102"},{"x":131782,"y":78589,"z":5798,"sc":"ascending","nt":"glutamate","ct":"AN_SMP_1"},{"x":207870,"y":75134,"z":1710,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":54468,"y":68094,"z":5677,"sc":"optic","nt":"acetylcholine","ct":"Tm1"},{"x":81951,"y":89346,"z":4399,"sc":"optic","nt":"glutamate","ct":"Tm5e"},{"x":113320,"y":27560,"z":4833,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":143958,"y":92578,"z":2940,"sc":"sensory","nt":"acetylcholine","ct":"TPMN1"},{"x":114719,"y":56964,"z":5079,"sc":"central","nt":"acetylcholine","ct":"CB1030"},{"x":73242,"y":67327,"z":5131,"sc":"optic","nt":"acetylcholine","ct":"T2"},{"x":182624,"y":55272,"z":2202,"sc":"central","nt":"acetylcholine","ct":"CB1100"},{"x":84581,"y":45078,"z":3866,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10d"},{"x":182928,"y":44144,"z":4597,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10d"},{"x":118376,"y":76024,"z":1063,"sc":"motor","nt":"acetylcholine","ct":"CB0764"},{"x":82200,"y":47512,"z":4370,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10d"},{"x":82008,"y":64936,"z":3390,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe01b"},{"x":174397,"y":47841,"z":3100,"sc":"central","nt":"acetylcholine","ct":"CB2803"},{"x":215639,"y":79536,"z":3074,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":218233,"y":66636,"z":3612,"sc":"sensory","nt":"na","ct":"R1-6"},{"x":92200,"y":75152,"z":3801,"sc":"visual_projection","nt":"acetylcholine","ct":"LC13"},{"x":181064,"y":52392,"z":3113,"sc":"visual_centrifugal","nt":"gaba","ct":"cM10"},{"x":132770,"y":25861,"z":2749,"sc":"endocrine","nt":"acetylcholine","ct":"DMS"},{"x":172472,"y":76232,"z":1696,"sc":"central","nt":"acetylcholine","ct":"AVLP346"},{"x":149800,"y":86870,"z":4102,"sc":"descending","nt":"acetylcholine","ct":"DNg07"},{"x":128779,"y":85700,"z":5382,"sc":"ascending","nt":"gaba","ct":"AN_GNG_SAD_3"},{"x":26043,"y":84991,"z":4263,"sc":"sensory","nt":"na","ct":"R1-6"},{"x":115512,"y":60576,"z":1954,"sc":"central","nt":"gaba","ct":"VL2a_vPN"},{"x":155998,"y":38670,"z":3986,"sc":"central","nt":"acetylcholine","ct":"SMP261"},{"x":107376,"y":67680,"z":5635,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01b"},{"x":92336,"y":30624,"z":4827,"sc":"visual_projection","nt":"acetylcholine","ct":"LTe68a"},{"x":129686,"y":75695,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":132880,"y":27456,"z":3563,"sc":"central","nt":"acetylcholine","ct":"FC2C"},{"x":150552,"y":45448,"z":4628,"sc":"descending","nt":"acetylcholine","ct":"DNpe029"},{"x":172288,"y":54432,"z":5673,"sc":"visual_projection","nt":"acetylcholine","ct":"LC18"},{"x":198097,"y":76594,"z":4051,"sc":"optic","nt":"glutamate","ct":"Tm5d"},{"x":86784,"y":86200,"z":5856,"sc":"optic","nt":"acetylcholine","ct":"T2a"},{"x":183320,"y":89784,"z":5416,"sc":"optic","nt":"acetylcholine","ct":"T2a"},{"x":77458,"y":51756,"z":6628,"sc":"optic","nt":"gaba","ct":"LPi07"},{"x":71391,"y":69681,"z":3008,"sc":"optic","nt":"acetylcholine","ct":"Tm20"},{"x":187264,"y":94136,"z":2979,"sc":"optic","nt":"acetylcholine","ct":"TmY3"},{"x":135304,"y":25448,"z":1234,"sc":"central","nt":"acetylcholine","ct":"CRE004"},{"x":207138,"y":95225,"z":2654,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":200686,"y":74396,"z":2979,"sc":"sensory","nt":"gaba","ct":"R7"},{"x":132384,"y":82480,"z":5422,"sc":"descending","nt":"acetylcholine","ct":"DNg58"},{"x":47189,"y":89680,"z":3249,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":63574,"y":80031,"z":6549,"sc":"optic","nt":"acetylcholine","ct":""},{"x":186207,"y":45120,"z":4055,"sc":"optic","nt":"gaba","ct":"Sm05"},{"x":153711,"y":56123,"z":208,"sc":"sensory","nt":"acetylcholine","ct":"ORN_D"},{"x":179560,"y":62232,"z":2294,"sc":"visual_projection","nt":"acetylcholine","ct":"LC28a"},{"x":44878,"y":59062,"z":4188,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":118460,"y":61858,"z":426,"sc":"sensory","nt":"acetylcholine","ct":"ORN_DM4"},{"x":185252,"y":71690,"z":6011,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC1"},{"x":127886,"y":80669,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_ADMN_11"},{"x":130859,"y":40077,"z":1810,"sc":"endocrine","nt":"octopamine","ct":"IPC"},{"x":160680,"y":28728,"z":4656,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":32173,"y":67878,"z":4566,"sc":"sensory","nt":"gaba","ct":"R7"},{"x":52333,"y":59379,"z":5633,"sc":"optic","nt":"acetylcholine","ct":"Tm4"},{"x":133307,"y":82747,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_140"},{"x":161040,"y":73208,"z":4221,"sc":"optic","nt":"glutamate","ct":"Li10"},{"x":126312,"y":40040,"z":4958,"sc":"visual_centrifugal","nt":"glutamate","ct":"OCC02b"},{"x":118482,"y":46038,"z":4565,"sc":"central","nt":"acetylcholine","ct":"FS3"},{"x":128172,"y":80855,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_ADMN_2"},{"x":84360,"y":71504,"z":3205,"sc":"optic","nt":"gaba","ct":"LMa4"},{"x":164742,"y":61528,"z":1566,"sc":"central","nt":"gaba","ct":"AVLP076"},{"x":149350,"y":86902,"z":4102,"sc":"descending","nt":"acetylcholine","ct":"DNge089"},{"x":132149,"y":78404,"z":5798,"sc":"ascending","nt":"glutamate","ct":"AN_GNG_204"},{"x":204148,"y":50336,"z":3254,"sc":"optic","nt":"acetylcholine","ct":"L4"},{"x":82684,"y":65327,"z":3714,"sc":"visual_projection","nt":"acetylcholine","ct":"aMe12"},{"x":89781,"y":51279,"z":4621,"sc":"visual_projection","nt":"acetylcholine","ct":"LC28d"},{"x":114978,"y":60054,"z":1812,"sc":"central","nt":"gaba","ct":"DP1l_vPN"},{"x":145319,"y":81685,"z":899,"sc":"motor","nt":"acetylcholine","ct":"CB0764"},{"x":180104,"y":49464,"z":3482,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10d"},{"x":68200,"y":52526,"z":5796,"sc":"optic","nt":"gaba","ct":"C2"},{"x":152320,"y":87664,"z":2083,"sc":"descending","nt":"serotonin","ct":"DNg65"},{"x":141874,"y":89697,"z":3380,"sc":"descending","nt":"glutamate","ct":"DNge034"},{"x":130886,"y":83410,"z":5798,"sc":"ascending","nt":"glutamate","ct":"AN_GNG_192"},{"x":176944,"y":45376,"z":5298,"sc":"visual_projection","nt":"acetylcholine","ct":"LC11"},{"x":82184,"y":62136,"z":6769,"sc":"optic","nt":"acetylcholine","ct":"T4b"},{"x":119651,"y":65094,"z":539,"sc":"sensory","nt":"serotonin","ct":"ORN_DM5"},{"x":143853,"y":81296,"z":4997,"sc":"descending","nt":"glutamate","ct":"DNg10"},{"x":151536,"y":47464,"z":4788,"sc":"descending","nt":"acetylcholine","ct":"DNp20"},{"x":88096,"y":43872,"z":5708,"sc":"visual_projection","nt":"acetylcholine","ct":"LC11"},{"x":216540,"y":68740,"z":3150,"sc":"sensory","nt":"na","ct":"R1-6"},{"x":190985,"y":61379,"z":4913,"sc":"optic","nt":"acetylcholine","ct":"TmY20"},{"x":151192,"y":27976,"z":4000,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":133900,"y":83871,"z":5798,"sc":"ascending","nt":"glutamate","ct":"AN_GNG_197"},{"x":110606,"y":66046,"z":761,"sc":"sensory","nt":"acetylcholine","ct":"ORN_VL1"},{"x":199028,"y":75030,"z":4149,"sc":"optic","nt":"acetylcholine","ct":"Mi10"},{"x":71344,"y":62952,"z":3103,"sc":"optic","nt":"acetylcholine","ct":"Mi15"},{"x":106264,"y":74664,"z":4847,"sc":"descending","nt":"acetylcholine","ct":"DNge132"},{"x":164955,"y":60807,"z":4631,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP02"},{"x":97200,"y":71216,"z":6043,"sc":"optic","nt":"glutamate","ct":"Tlp4"},{"x":101776,"y":79168,"z":3338,"sc":"central","nt":"glutamate","ct":"CB0896"},{"x":81120,"y":66344,"z":6845,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC1"},{"x":62741,"y":88420,"z":5349,"sc":"optic","nt":"acetylcholine","ct":"L4"},{"x":138945,"y":83014,"z":5798,"sc":"ascending","nt":"gaba","ct":"AN_GNG_12"},{"x":135401,"y":83585,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_33"},{"x":135384,"y":24688,"z":3386,"sc":"central","nt":"acetylcholine","ct":"PEN_a(PEN1)"},{"x":194205,"y":85752,"z":5056,"sc":"optic","nt":"gaba","ct":"C3"},{"x":125336,"y":33552,"z":4160,"sc":"visual_centrifugal","nt":"glutamate","ct":"OCC02b"},{"x":158296,"y":78096,"z":4582,"sc":"central","nt":"acetylcholine","ct":"CB0045"},{"x":88930,"y":50007,"z":4445,"sc":"visual_projection","nt":"glutamate","ct":"LT51"},{"x":190265,"y":43528,"z":5116,"sc":"optic","nt":"gaba","ct":"C3"},{"x":64271,"y":53187,"z":4372,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":78776,"y":84584,"z":6331,"sc":"optic","nt":"acetylcholine","ct":"T3"},{"x":184045,"y":75352,"z":5994,"sc":"optic","nt":"glutamate","ct":"LPi05"},{"x":35955,"y":67359,"z":4894,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":126657,"y":76286,"z":5647,"sc":"ascending","nt":"acetylcholine","ct":""},{"x":105083,"y":25389,"z":4442,"sc":"central","nt":"acetylcholine","ct":"SLP373"},{"x":178440,"y":50312,"z":3838,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10a"},{"x":171438,"y":47517,"z":2005,"sc":"central","nt":"acetylcholine","ct":"SLP224"},{"x":103952,"y":69088,"z":5315,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP02"},{"x":138010,"y":79596,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":159640,"y":43192,"z":5001,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":83040,"y":63688,"z":6685,"sc":"optic","nt":"acetylcholine","ct":"T4b"},{"x":204676,"y":59794,"z":5604,"sc":"optic","nt":"acetylcholine","ct":"Tm5a"},{"x":204701,"y":85695,"z":2082,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":196402,"y":44946,"z":4258,"sc":"optic","nt":"acetylcholine","ct":"Tm9"},{"x":160784,"y":70736,"z":5185,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP02"},{"x":178076,"y":47463,"z":2805,"sc":"central","nt":"gaba","ct":"CB3051"},{"x":191232,"y":78288,"z":4881,"sc":"optic","nt":"acetylcholine","ct":"T4c"},{"x":173208,"y":32320,"z":4142,"sc":"central","nt":"glutamate","ct":"SLP258"},{"x":124419,"y":90369,"z":3394,"sc":"descending","nt":"acetylcholine","ct":"DNge009"},{"x":93120,"y":70936,"z":3335,"sc":"visual_projection","nt":"glutamate","ct":"LC12"},{"x":139247,"y":79412,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_IPS_20"},{"x":107176,"y":77080,"z":4780,"sc":"descending","nt":"acetylcholine","ct":"DNg50"},{"x":129392,"y":25208,"z":2847,"sc":"descending","nt":"acetylcholine","ct":"MDN"},{"x":126955,"y":82966,"z":5799,"sc":"ascending","nt":"gaba","ct":"AN_GNG_VES_7"},{"x":170328,"y":75592,"z":1787,"sc":"central","nt":"acetylcholine","ct":"AVLP347"},{"x":174385,"y":47564,"z":3100,"sc":"central","nt":"acetylcholine","ct":"LHAV3h1"},{"x":130829,"y":76392,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_36"},{"x":205570,"y":71911,"z":5085,"sc":"optic","nt":"glutamate","ct":"Sm03"},{"x":56559,"y":80438,"z":6357,"sc":"optic","nt":"gaba","ct":"Sm06"},{"x":180312,"y":46592,"z":3740,"sc":"visual_projection","nt":"acetylcholine","ct":"LC6"},{"x":150593,"y":23827,"z":3355,"sc":"central","nt":"acetylcholine","ct":"CB1627"},{"x":58983,"y":50515,"z":3348,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":97768,"y":77536,"z":4016,"sc":"descending","nt":"acetylcholine","ct":"DNge089"},{"x":194197,"y":96180,"z":4209,"sc":"optic","nt":"acetylcholine","ct":"L5"},{"x":88530,"y":43195,"z":3522,"sc":"central","nt":"glutamate","ct":"CB3079"},{"x":194015,"y":47006,"z":3464,"sc":"optic","nt":"acetylcholine","ct":"L3"},{"x":69400,"y":76415,"z":4206,"sc":"optic","nt":"glutamate","ct":"Tm5e"},{"x":190065,"y":76916,"z":4652,"sc":"optic","nt":"gaba","ct":"C3"},{"x":115299,"y":39795,"z":3319,"sc":"descending","nt":"acetylcholine","ct":"DNp68"},{"x":108920,"y":69536,"z":5494,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01a"},{"x":54462,"y":59206,"z":5465,"sc":"optic","nt":"acetylcholine","ct":"TmY9q__perp"},{"x":134802,"y":83284,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_27"},{"x":138846,"y":79317,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":178280,"y":79312,"z":2042,"sc":"optic","nt":"glutamate","ct":"Mi9"},{"x":81248,"y":43184,"z":4682,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10b"},{"x":73692,"y":86171,"z":5903,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe02"},{"x":63094,"y":78604,"z":4457,"sc":"optic","nt":"glutamate","ct":"Dm3p"},{"x":113103,"y":76897,"z":1646,"sc":"central","nt":"gaba","ct":"CB0840"},{"x":105327,"y":60596,"z":3301,"sc":"descending","nt":"acetylcholine","ct":"DNp06"},{"x":159248,"y":82216,"z":2323,"sc":"descending","nt":"octopamine","ct":"DNg28"},{"x":25086,"y":96943,"z":4161,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":129045,"y":81740,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_148"},{"x":54180,"y":62836,"z":4594,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":192070,"y":50428,"z":2971,"sc":"optic","nt":"na","ct":"L3"},{"x":168888,"y":70728,"z":3250,"sc":"visual_projection","nt":"acetylcholine","ct":"LC4"},{"x":100599,"y":50238,"z":5080,"sc":"central","nt":"gaba","ct":"AVLP464"},{"x":160440,"y":75064,"z":4999,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP02"},{"x":194993,"y":52638,"z":5599,"sc":"optic","nt":"acetylcholine","ct":"T4b"},{"x":156856,"y":29376,"z":4090,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":180816,"y":46328,"z":4181,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10d"},{"x":183910,"y":37059,"z":3772,"sc":"central","nt":"acetylcholine","ct":"PLP103b"},{"x":190688,"y":57336,"z":5360,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC1"},{"x":57938,"y":59771,"z":4199,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu3b"},{"x":28181,"y":77053,"z":4727,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":162363,"y":35160,"z":2940,"sc":"central","nt":"acetylcholine","ct":"SLP152"},{"x":189148,"y":80168,"z":3884,"sc":"optic","nt":"acetylcholine","ct":"Tm5f"},{"x":38391,"y":75125,"z":4008,"sc":"optic","nt":"glutamate","ct":"L1"},{"x":86435,"y":33455,"z":4054,"sc":"central","nt":"glutamate","ct":"CB2064"},{"x":135367,"y":84215,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_44"},{"x":79664,"y":43160,"z":4428,"sc":"optic","nt":"gaba","ct":"Pm02"},{"x":109068,"y":28249,"z":4455,"sc":"central","nt":"glutamate","ct":"CB3767"},{"x":129902,"y":81874,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_165"},{"x":112887,"y":31438,"z":3903,"sc":"central","nt":"glutamate","ct":"FB2H_a,FB2I_b"},{"x":118800,"y":75936,"z":1258,"sc":"motor","nt":"acetylcholine","ct":"CB0882"},{"x":162412,"y":64048,"z":4785,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01b"},{"x":133502,"y":83499,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_94"},{"x":126390,"y":79978,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_172"},{"x":107408,"y":80416,"z":2954,"sc":"descending","nt":"acetylcholine","ct":"DNg100"},{"x":131949,"y":83467,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_SAD_13"},{"x":135166,"y":84422,"z":5798,"sc":"ascending","nt":"gaba","ct":"AN_multi_19"},{"x":171749,"y":52999,"z":3882,"sc":"central","nt":"acetylcholine","ct":"CB0952"},{"x":95599,"y":34726,"z":3587,"sc":"central","nt":"glutamate","ct":"SLP028b"},{"x":76638,"y":42259,"z":5761,"sc":"optic","nt":"acetylcholine","ct":"T4a"},{"x":172138,"y":46493,"z":2388,"sc":"central","nt":"glutamate","ct":"CB2437"},{"x":111108,"y":53761,"z":865,"sc":"sensory","nt":"serotonin","ct":"ORN_DL3"},{"x":129588,"y":81726,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_184"},{"x":144175,"y":48557,"z":3648,"sc":"central","nt":"glutamate","ct":"AOTU039"},{"x":129673,"y":54492,"z":3241,"sc":"central","nt":"gaba","ct":"VES022b"},{"x":136664,"y":89904,"z":4345,"sc":"central","nt":"acetylcholine","ct":"CB2291"},{"x":118618,"y":45952,"z":4565,"sc":"central","nt":"acetylcholine","ct":"FS1A"},{"x":186955,"y":85349,"z":3000,"sc":"optic","nt":"acetylcholine","ct":"Tm16"},{"x":79375,"y":53401,"z":5848,"sc":"optic","nt":"acetylcholine","ct":"T5d"},{"x":173136,"y":69936,"z":5822,"sc":"optic","nt":"acetylcholine","ct":"T4c"},{"x":64708,"y":79822,"z":5242,"sc":"optic","nt":"glutamate","ct":"Mi14"},{"x":168824,"y":82624,"z":2931,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe03"},{"x":201144,"y":63184,"z":5927,"sc":"optic","nt":"gaba","ct":"C3"},{"x":152051,"y":42144,"z":2086,"sc":"descending","nt":"acetylcholine","ct":"DNae004"},{"x":209438,"y":71330,"z":2043,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":127915,"y":72086,"z":5152,"sc":"descending","nt":"acetylcholine","ct":"DNpe015"},{"x":158496,"y":47376,"z":5344,"sc":"descending","nt":"acetylcholine","ct":"DNpe001"},{"x":78367,"y":47945,"z":4746,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":161660,"y":66882,"z":4809,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01b"},{"x":42816,"y":48664,"z":4631,"sc":"sensory","nt":"serotonin","ct":"R1-6"},{"x":83488,"y":65163,"z":5940,"sc":"optic","nt":"glutamate","ct":"TmY5a"},{"x":128724,"y":83837,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_112"},{"x":58512,"y":70921,"z":3220,"sc":"sensory","nt":"gaba","ct":"R1-6"},{"x":152518,"y":59305,"z":870,"sc":"central","nt":"acetylcholine","ct":"DL3_lPN"},{"x":48021,"y":63469,"z":3790,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":106245,"y":38526,"z":5539,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":193890,"y":70707,"z":4789,"sc":"optic","nt":"acetylcholine","ct":"T4a"},{"x":63635,"y":89465,"z":5785,"sc":"optic","nt":"glutamate","ct":"L1"},{"x":190833,"y":45683,"z":4242,"sc":"optic","nt":"gaba","ct":"Mi13"},{"x":98528,"y":73144,"z":5988,"sc":"optic","nt":"glutamate","ct":"LPi03"},{"x":131810,"y":89377,"z":2877,"sc":"ascending","nt":"gaba","ct":""},{"x":32921,"y":73796,"z":4200,"sc":"optic","nt":"acetylcholine","ct":"L5"},{"x":120573,"y":83013,"z":1807,"sc":"central","nt":"gaba","ct":"CB2233"},{"x":82832,"y":46800,"z":4484,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10d"},{"x":192480,"y":83591,"z":2579,"sc":"optic","nt":"acetylcholine","ct":"T1"},{"x":131035,"y":72438,"z":4694,"sc":"descending","nt":"octopamine","ct":"DNge138"},{"x":160540,"y":43171,"z":3977,"sc":"central","nt":"dopamine","ct":"KCg-d"},{"x":169916,"y":36448,"z":4547,"sc":"central","nt":"acetylcholine","ct":"CB2208"},{"x":177472,"y":55384,"z":5916,"sc":"optic","nt":"acetylcholine","ct":"T5d"},{"x":54306,"y":54477,"z":6381,"sc":"optic","nt":"acetylcholine","ct":"Tm1"},{"x":206513,"y":69584,"z":3132,"sc":"sensory","nt":"acetylcholine","ct":"R7"},{"x":45167,"y":68387,"z":3694,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":134476,"y":82577,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_15"},{"x":136408,"y":92216,"z":4619,"sc":"central","nt":"acetylcholine","ct":"CB3812"},{"x":112413,"y":32201,"z":4685,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":129430,"y":80762,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_IPS_10"},{"x":110248,"y":45432,"z":978,"sc":"central","nt":"gaba","ct":"MBON31"},{"x":154589,"y":50658,"z":5111,"sc":"central","nt":"acetylcholine","ct":"CB2737"},{"x":180224,"y":43472,"z":4746,"sc":"visual_projection","nt":"acetylcholine","ct":"LC22"},{"x":119604,"y":73204,"z":4431,"sc":"descending","nt":"glutamate","ct":"DNge088"},{"x":81472,"y":42464,"z":5032,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10e"},{"x":84904,"y":45168,"z":4109,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10c-2"},{"x":98807,"y":58731,"z":5619,"sc":"visual_projection","nt":"acetylcholine","ct":"LC43"},{"x":136859,"y":79217,"z":5797,"sc":"sensory_ascending","nt":"na","ct":"SA_DMT_DMetaN_12"},{"x":107816,"y":65800,"z":5548,"sc":"central","nt":"acetylcholine","ct":"AVLP505"},{"x":115474,"y":86662,"z":2115,"sc":"descending","nt":"acetylcholine","ct":"DNg79"},{"x":214172,"y":71357,"z":4782,"sc":"optic","nt":"acetylcholine","ct":"L5"},{"x":138264,"y":70096,"z":811,"sc":"descending","nt":"acetylcholine","ct":"DNbe001"},{"x":97832,"y":44511,"z":2618,"sc":"central","nt":"acetylcholine","ct":"CB1377"},{"x":135906,"y":65612,"z":774,"sc":"sensory","nt":"acetylcholine","ct":"ORN_VM5d"},{"x":130352,"y":83676,"z":5798,"sc":"ascending","nt":"glutamate","ct":"AN_GNG_168"},{"x":52213,"y":64397,"z":4690,"sc":"optic","nt":"acetylcholine","ct":"T1"},{"x":209197,"y":87078,"z":3032,"sc":"optic","nt":"acetylcholine","ct":"L3"},{"x":141550,"y":72604,"z":1665,"sc":"ascending","nt":"serotonin","ct":"AN_multi_124"},{"x":100471,"y":45525,"z":3706,"sc":"central","nt":"glutamate","ct":"PVLP008"},{"x":57108,"y":51010,"z":3786,"sc":"optic","nt":"gaba","ct":"Lai"},{"x":134144,"y":27752,"z":3293,"sc":"central","nt":"acetylcholine","ct":"vDeltaK"},{"x":195517,"y":92134,"z":3795,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":135600,"y":89200,"z":4252,"sc":"descending","nt":"gaba","ct":"DNge153"},{"x":136234,"y":84089,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_42"},{"x":108056,"y":44440,"z":5687,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":146608,"y":90408,"z":2148,"sc":"descending","nt":"gaba","ct":"DNge031"},{"x":50642,"y":80815,"z":3316,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":139502,"y":68643,"z":929,"sc":"sensory","nt":"acetylcholine","ct":"ORN_VM5d"},{"x":202951,"y":84316,"z":3126,"sc":"sensory","nt":"gaba","ct":"R7"},{"x":132672,"y":42960,"z":4302,"sc":"visual_centrifugal","nt":"acetylcholine","ct":"LPT57"},{"x":178576,"y":81144,"z":5672,"sc":"optic","nt":"acetylcholine","ct":"T5b"},{"x":167752,"y":30864,"z":4257,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":132106,"y":49091,"z":1467,"sc":"descending","nt":"serotonin","ct":"DNp58"},{"x":85936,"y":78104,"z":6301,"sc":"optic","nt":"acetylcholine","ct":"T4d"},{"x":71464,"y":82689,"z":3753,"sc":"sensory","nt":"glutamate","ct":"R7"},{"x":148120,"y":29472,"z":3934,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":90944,"y":75112,"z":3804,"sc":"optic","nt":"glutamate","ct":"Li01"},{"x":127080,"y":39792,"z":4871,"sc":"visual_centrifugal","nt":"acetylcholine","ct":"cMLLP02"},{"x":153845,"y":36735,"z":1150,"sc":"central","nt":"acetylcholine","ct":"CRE016"},{"x":44912,"y":61500,"z":3959,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":184372,"y":79176,"z":4937,"sc":"optic","nt":"acetylcholine","ct":"T5a"},{"x":157224,"y":73592,"z":4964,"sc":"central","nt":"acetylcholine","ct":"CB0191"},{"x":127760,"y":33512,"z":4254,"sc":"visual_centrifugal","nt":"acetylcholine","ct":"cM15"},{"x":129233,"y":83688,"z":5798,"sc":"ascending","nt":"serotonin","ct":"AN_GNG_69"},{"x":159578,"y":50717,"z":2364,"sc":"central","nt":"glutamate","ct":"CB3439"},{"x":130382,"y":75497,"z":4419,"sc":"descending","nt":"acetylcholine","ct":"DNge172"},{"x":127692,"y":80920,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_ADMN_11"},{"x":35728,"y":98603,"z":3743,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":160052,"y":27284,"z":3736,"sc":"central","nt":"glutamate","ct":"SLP295b"},{"x":178920,"y":49688,"z":3624,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10e"},{"x":100456,"y":78384,"z":3436,"sc":"motor","nt":"acetylcholine","ct":"CB0861"},{"x":119947,"y":66433,"z":4516,"sc":"descending","nt":"acetylcholine","ct":"DNa16"},{"x":27334,"y":87055,"z":4235,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":126846,"y":79423,"z":5798,"sc":"sensory_ascending","nt":"serotonin","ct":""},{"x":125212,"y":78685,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_DMetaN_12"},{"x":180920,"y":43576,"z":4803,"sc":"visual_projection","nt":"acetylcholine","ct":"LCe04"},{"x":219318,"y":65115,"z":3725,"sc":"sensory","nt":"serotonin","ct":"R1-6"},{"x":109320,"y":30032,"z":4746,"sc":"central","nt":"dopamine","ct":"KCg-d"},{"x":138399,"y":82307,"z":4919,"sc":"descending","nt":"acetylcholine","ct":"DNg53"},{"x":182359,"y":93137,"z":3077,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":45955,"y":60539,"z":4719,"sc":"optic","nt":"acetylcholine","ct":"L4"},{"x":53487,"y":73226,"z":4911,"sc":"optic","nt":"acetylcholine","ct":"Lawf1"},{"x":202657,"y":84538,"z":3424,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu4d"},{"x":170109,"y":41145,"z":4551,"sc":"central","nt":"glutamate","ct":"CB2026"},{"x":49986,"y":66958,"z":3402,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":191215,"y":95649,"z":5056,"sc":"optic","nt":"acetylcholine","ct":"Mi1"},{"x":182208,"y":51000,"z":2813,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe07"},{"x":196146,"y":49703,"z":4812,"sc":"optic","nt":"gaba","ct":"C3"},{"x":173398,"y":70469,"z":2040,"sc":"central","nt":"acetylcholine","ct":"CB2178"},{"x":173885,"y":47457,"z":2403,"sc":"central","nt":"glutamate","ct":"CB0993"},{"x":110156,"y":36410,"z":2683,"sc":"central","nt":"acetylcholine","ct":"pC1c"},{"x":95592,"y":71256,"z":3471,"sc":"visual_projection","nt":"acetylcholine","ct":"LC17"},{"x":122683,"y":47112,"z":4791,"sc":"descending","nt":"acetylcholine","ct":"DNpe011"},{"x":160808,"y":25536,"z":3890,"sc":"central","nt":"glutamate","ct":"DN1pB"},{"x":139525,"y":86807,"z":4127,"sc":"sensory","nt":"acetylcholine","ct":"BM_InOm"},{"x":147333,"y":86973,"z":4812,"sc":"motor","nt":"acetylcholine","ct":"CB0706"},{"x":187916,"y":91741,"z":3266,"sc":"optic","nt":"acetylcholine","ct":"Tm4"},{"x":184744,"y":70953,"z":6004,"sc":"optic","nt":"acetylcholine","ct":"T5d"},{"x":65251,"y":45348,"z":5512,"sc":"optic","nt":"acetylcholine","ct":"Dm2"},{"x":83435,"y":31657,"z":4145,"sc":"central","nt":"acetylcholine","ct":"CB1909"},{"x":115138,"y":31682,"z":4926,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":207025,"y":60918,"z":3088,"sc":"optic","nt":"acetylcholine","ct":"L4"},{"x":218573,"y":68500,"z":3514,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":116912,"y":45704,"z":4790,"sc":"descending","nt":"acetylcholine","ct":"DNpe029"},{"x":182627,"y":55602,"z":3094,"sc":"optic","nt":"glutamate","ct":"DmDRA1"},{"x":83736,"y":68840,"z":2694,"sc":"central","nt":"acetylcholine","ct":"CB2256"},{"x":86261,"y":62446,"z":2893,"sc":"central","nt":"acetylcholine","ct":"CB2167"},{"x":131082,"y":26447,"z":2749,"sc":"endocrine","nt":"acetylcholine","ct":"DH44"},{"x":132189,"y":83603,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_122"},{"x":112680,"y":44808,"z":5671,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":206233,"y":62861,"z":2427,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":158936,"y":67000,"z":864,"sc":"central","nt":"acetylcholine","ct":"CB2558"},{"x":202077,"y":71027,"z":3110,"sc":"optic","nt":"acetylcholine","ct":"Tm25"},{"x":120242,"y":41218,"z":3822,"sc":"descending","nt":"acetylcholine","ct":"DNp47"},{"x":105088,"y":78328,"z":4308,"sc":"central","nt":"gaba","ct":"CB0891"},{"x":68009,"y":49003,"z":4248,"sc":"optic","nt":"glutamate","ct":"Dm3p"},{"x":174651,"y":48225,"z":3100,"sc":"central","nt":"acetylcholine","ct":"CB1512"},{"x":116691,"y":46950,"z":4855,"sc":"descending","nt":"acetylcholine","ct":"DNpe049"},{"x":84336,"y":82424,"z":6142,"sc":"optic","nt":"acetylcholine","ct":"T4a"},{"x":91024,"y":72240,"z":3805,"sc":"visual_projection","nt":"glutamate","ct":"LC25"},{"x":131469,"y":84127,"z":5798,"sc":"sensory_ascending","nt":"serotonin","ct":"SA_VTV_6"},{"x":132332,"y":83518,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_69"},{"x":114065,"y":46010,"z":4976,"sc":"endocrine","nt":"acetylcholine","ct":"lNSC_unknown"},{"x":134646,"y":77704,"z":5798,"sc":"ascending","nt":"glutamate","ct":""},{"x":110462,"y":76715,"z":2702,"sc":"sensory","nt":"acetylcholine","ct":"JO-EV3"},{"x":64077,"y":61380,"z":3811,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":204682,"y":46544,"z":4858,"sc":"optic","nt":"acetylcholine","ct":"T1"},{"x":83224,"y":42992,"z":5350,"sc":"visual_projection","nt":"acetylcholine","ct":"LCe04"},{"x":186676,"y":95353,"z":4519,"sc":"optic","nt":"glutamate","ct":"Tm5e"},{"x":68990,"y":60910,"z":5184,"sc":"optic","nt":"acetylcholine","ct":"T2a"},{"x":70259,"y":91235,"z":6025,"sc":"optic","nt":"gaba","ct":"C3"},{"x":40520,"y":48712,"z":4531,"sc":"optic","nt":"acetylcholine","ct":"L4"},{"x":137184,"y":78494,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":55329,"y":41734,"z":4137,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":192914,"y":86576,"z":2826,"sc":"sensory","nt":"acetylcholine","ct":"R8"},{"x":214801,"y":54132,"z":3548,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":147468,"y":95370,"z":2801,"sc":"sensory","nt":"acetylcholine","ct":"BM_vOcci_vPoOr"},{"x":155552,"y":79232,"z":1365,"sc":"central","nt":"acetylcholine","ct":"CB2526"},{"x":100368,"y":56600,"z":5554,"sc":"visual_projection","nt":"acetylcholine","ct":"LPT54"},{"x":140420,"y":86781,"z":3891,"sc":"sensory","nt":"acetylcholine","ct":"BM_InOm"},{"x":172600,"y":73696,"z":2259,"sc":"central","nt":"acetylcholine","ct":"CB2735"},{"x":186984,"y":84722,"z":3106,"sc":"optic","nt":"glutamate","ct":"Mi2"},{"x":121951,"y":39866,"z":4487,"sc":"central","nt":"acetylcholine","ct":"vDeltaE"},{"x":140776,"y":42176,"z":4481,"sc":"central","nt":"gaba","ct":"WED104"},{"x":130568,"y":31336,"z":3779,"sc":"central","nt":"glutamate","ct":"WED103"},{"x":155652,"y":27504,"z":3716,"sc":"central","nt":"acetylcholine","ct":"CL162"},{"x":86592,"y":80984,"z":3621,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":167488,"y":80568,"z":2960,"sc":"visual_projection","nt":"acetylcholine","ct":"LC26"},{"x":182280,"y":63872,"z":5901,"sc":"optic","nt":"acetylcholine","ct":"T4c"},{"x":80112,"y":74648,"z":6617,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC1"},{"x":66169,"y":68044,"z":4073,"sc":"optic","nt":"glutamate","ct":"TmY5a"},{"x":54547,"y":54255,"z":5698,"sc":"optic","nt":"glutamate","ct":"Tm5c"},{"x":115406,"y":86518,"z":2112,"sc":"central","nt":"acetylcholine","ct":"CB0825"},{"x":60454,"y":76701,"z":5818,"sc":"optic","nt":"gaba","ct":"Dm2"},{"x":96040,"y":76496,"z":3822,"sc":"visual_projection","nt":"acetylcholine","ct":"LC15"},{"x":122472,"y":90584,"z":2976,"sc":"descending","nt":"gaba","ct":"DNg74_b"},{"x":202083,"y":93194,"z":5064,"sc":"sensory","nt":"glutamate","ct":"R8"},{"x":147031,"y":58861,"z":985,"sc":"central","nt":"acetylcholine","ct":"D_adPN"},{"x":175400,"y":46432,"z":4572,"sc":"visual_projection","nt":"acetylcholine","ct":"LPLC4"},{"x":140800,"y":24336,"z":1666,"sc":"central","nt":"glutamate","ct":"SMP060,SMP374"},{"x":163226,"y":50672,"z":4559,"sc":"central","nt":"acetylcholine","ct":"CB3868"},{"x":90262,"y":28325,"z":4308,"sc":"central","nt":"acetylcholine","ct":"LHAV5a2_a2"},{"x":59472,"y":67038,"z":5516,"sc":"optic","nt":"gaba","ct":"yDm8"},{"x":177584,"y":46666,"z":3812,"sc":"visual_projection","nt":"acetylcholine","ct":"LC35"},{"x":206611,"y":73731,"z":3208,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":164253,"y":57723,"z":4698,"sc":"visual_projection","nt":"glutamate","ct":"LC37"},{"x":168496,"y":51728,"z":4939,"sc":"visual_projection","nt":"acetylcholine","ct":"LPLC2"},{"x":208502,"y":85360,"z":2924,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":142541,"y":46755,"z":4644,"sc":"descending","nt":"acetylcholine","ct":"DNp17"},{"x":136078,"y":80534,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":134979,"y":23325,"z":3483,"sc":"sensory","nt":"serotonin","ct":""},{"x":166098,"y":37557,"z":4499,"sc":"central","nt":"acetylcholine","ct":"LHPV5a1"},{"x":88968,"y":72272,"z":6588,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC3"},{"x":76592,"y":46913,"z":5532,"sc":"optic","nt":"acetylcholine","ct":"T5c"},{"x":133807,"y":84281,"z":5798,"sc":"ascending","nt":"glutamate","ct":"AN_GNG_62"},{"x":109179,"y":73275,"z":1843,"sc":"sensory","nt":"acetylcholine","ct":"JO-mz"},{"x":120615,"y":58601,"z":3598,"sc":"descending","nt":"acetylcholine","ct":"DNae009"},{"x":36707,"y":57862,"z":4740,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":85200,"y":46632,"z":4632,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10a"},{"x":174912,"y":84640,"z":5355,"sc":"optic","nt":"acetylcholine","ct":"T5c"},{"x":86751,"y":46555,"z":3905,"sc":"central","nt":"glutamate","ct":"CB2346"},{"x":193061,"y":49083,"z":3555,"sc":"optic","nt":"acetylcholine","ct":"Tm2"},{"x":145091,"y":80172,"z":4957,"sc":"descending","nt":"acetylcholine","ct":"DNg02_b"},{"x":135092,"y":84120,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DLV"},{"x":43489,"y":68317,"z":4420,"sc":"sensory","nt":"gaba","ct":"R8"},{"x":84950,"y":57631,"z":4209,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10e"},{"x":93016,"y":75552,"z":3720,"sc":"visual_projection","nt":"acetylcholine","ct":"LCe02"},{"x":200789,"y":74915,"z":1826,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":179600,"y":68368,"z":6008,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC3"},{"x":74641,"y":43560,"z":5070,"sc":"optic","nt":"glutamate","ct":"TmY5a"},{"x":182384,"y":75032,"z":2072,"sc":"visual_projection","nt":"glutamate","ct":"TmY14"},{"x":113872,"y":30874,"z":4726,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":215481,"y":56679,"z":3262,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":72509,"y":46551,"z":5497,"sc":"optic","nt":"acetylcholine","ct":"Tm21"},{"x":74861,"y":90857,"z":5908,"sc":"optic","nt":"acetylcholine","ct":"L5"},{"x":155724,"y":51907,"z":1534,"sc":"central","nt":"acetylcholine","ct":"LHAV9a1_c"},{"x":211102,"y":90942,"z":3580,"sc":"sensory","nt":"na","ct":"R1-6"},{"x":130763,"y":76904,"z":5798,"sc":"ascending","nt":"glutamate","ct":"AN_GNG_60"},{"x":176708,"y":51148,"z":3224,"sc":"central","nt":"glutamate","ct":"PLP039"},{"x":152408,"y":27208,"z":3927,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":150005,"y":61576,"z":124,"sc":"sensory","nt":"acetylcholine","ct":"ORN_VA1v"},{"x":114970,"y":32828,"z":5027,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":127664,"y":31800,"z":4153,"sc":"visual_centrifugal","nt":"acetylcholine","ct":"cM18"},{"x":211244,"y":58399,"z":3239,"sc":"sensory","nt":"na","ct":"R1-6"},{"x":118571,"y":45917,"z":4567,"sc":"central","nt":"acetylcholine","ct":"FC1A,FC1B,FC1F"},{"x":161960,"y":83376,"z":3832,"sc":"visual_projection","nt":"acetylcholine","ct":"LC15"},{"x":201170,"y":65103,"z":5876,"sc":"optic","nt":"acetylcholine","ct":"T2a"},{"x":195458,"y":94539,"z":5100,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":71168,"y":76151,"z":6073,"sc":"optic","nt":"acetylcholine","ct":"T4b"},{"x":183936,"y":55347,"z":2396,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu3c"},{"x":111824,"y":65362,"z":2388,"sc":"central","nt":"gaba","ct":"AVLP447"},{"x":199872,"y":79312,"z":2224,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":182616,"y":89016,"z":5316,"sc":"optic","nt":"gaba","ct":"C3"},{"x":82920,"y":42952,"z":5669,"sc":"visual_projection","nt":"acetylcholine","ct":"LC9"},{"x":37817,"y":59763,"z":4488,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":80053,"y":55801,"z":5922,"sc":"optic","nt":"acetylcholine","ct":"T5d"},{"x":135232,"y":40936,"z":4359,"sc":"visual_centrifugal","nt":"acetylcholine","ct":"cML02"},{"x":129264,"y":28304,"z":3609,"sc":"descending","nt":"acetylcholine","ct":"DNp52"},{"x":125332,"y":38404,"z":4516,"sc":"central","nt":"acetylcholine","ct":"hDeltaJ"},{"x":181633,"y":93393,"z":4070,"sc":"optic","nt":"acetylcholine","ct":"Dm2"},{"x":212454,"y":72563,"z":2381,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":116283,"y":83623,"z":4151,"sc":"descending","nt":"glutamate","ct":"DNg44"},{"x":169308,"y":56016,"z":4419,"sc":"visual_projection","nt":"acetylcholine","ct":"LPLC2"},{"x":189623,"y":88457,"z":5637,"sc":"optic","nt":"gaba","ct":"C2"},{"x":175824,"y":46512,"z":4005,"sc":"visual_projection","nt":"acetylcholine","ct":"LTe64"},{"x":99528,"y":77320,"z":5563,"sc":"optic","nt":"glutamate","ct":"LPi10"},{"x":210472,"y":60132,"z":3892,"sc":"optic","nt":"acetylcholine","ct":"L4"},{"x":134973,"y":83590,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DLV"},{"x":175365,"y":66045,"z":2179,"sc":"central","nt":"acetylcholine","ct":"CB1780"},{"x":76567,"y":74068,"z":5072,"sc":"optic","nt":"gaba","ct":"Pm09"},{"x":101671,"y":33834,"z":3212,"sc":"central","nt":"glutamate","ct":"CL132"},{"x":166336,"y":78240,"z":3053,"sc":"visual_projection","nt":"glutamate","ct":"LC20b"},{"x":120978,"y":86398,"z":4740,"sc":"descending","nt":"gaba","ct":"DNge071"},{"x":132960,"y":82584,"z":5617,"sc":"descending","nt":"acetylcholine","ct":"DNge103"},{"x":59930,"y":48494,"z":5972,"sc":"optic","nt":"acetylcholine","ct":"Tm25"},{"x":205131,"y":94539,"z":3539,"sc":"optic","nt":"glutamate","ct":"L1"},{"x":139275,"y":87734,"z":3257,"sc":"descending","nt":"acetylcholine","ct":"DNg101"},{"x":100587,"y":59412,"z":5256,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP02"},{"x":147848,"y":53808,"z":5356,"sc":"visual_centrifugal","nt":"glutamate","ct":"cLPL01"},{"x":116879,"y":64542,"z":4214,"sc":"descending","nt":"acetylcholine","ct":"DNae002"},{"x":169878,"y":55269,"z":4419,"sc":"visual_projection","nt":"acetylcholine","ct":"LPLC2"},{"x":66501,"y":55972,"z":6378,"sc":"optic","nt":"acetylcholine","ct":"T3"},{"x":133835,"y":81749,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_148"},{"x":152203,"y":70012,"z":1635,"sc":"central","nt":"gaba","ct":"CB2711"},{"x":71121,"y":56789,"z":5876,"sc":"optic","nt":"acetylcholine","ct":"T3"},{"x":64052,"y":46539,"z":5752,"sc":"optic","nt":"acetylcholine","ct":"Dm2"},{"x":113712,"y":34056,"z":1408,"sc":"central","nt":"dopamine","ct":"PAM06"},{"x":191061,"y":64836,"z":3252,"sc":"optic","nt":"gaba","ct":"Sm31"},{"x":154137,"y":37379,"z":1150,"sc":"central","nt":"acetylcholine","ct":"LAL028, LAL029"},{"x":97040,"y":73224,"z":3022,"sc":"motor","nt":"glutamate","ct":"CB0723"},{"x":86596,"y":46486,"z":3797,"sc":"central","nt":"acetylcholine","ct":"CB1237"},{"x":178816,"y":68200,"z":5973,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC3"},{"x":120728,"y":80836,"z":5027,"sc":"descending","nt":"acetylcholine","ct":"DNg06"},{"x":135508,"y":82571,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_104"},{"x":140286,"y":86976,"z":3977,"sc":"sensory","nt":"acetylcholine","ct":"BM_InOm"},{"x":130374,"y":82117,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":""},{"x":199593,"y":64868,"z":3132,"sc":"optic","nt":"gaba","ct":"C3"},{"x":133333,"y":37507,"z":2463,"sc":"central","nt":"glutamate","ct":"FB6G"},{"x":132744,"y":30120,"z":3068,"sc":"descending","nt":"acetylcholine","ct":"MDN"},{"x":115566,"y":38103,"z":2964,"sc":"descending","nt":"acetylcholine","ct":"DNp60"},{"x":115663,"y":44776,"z":2490,"sc":"central","nt":"gaba","ct":"ER3m"},{"x":124952,"y":67848,"z":986,"sc":"descending","nt":"acetylcholine","ct":"DNbe003"},{"x":59989,"y":43145,"z":5880,"sc":"optic","nt":"acetylcholine","ct":"TmY3"},{"x":177792,"y":34504,"z":4280,"sc":"central","nt":"acetylcholine","ct":"LHPV6d1"},{"x":184957,"y":97089,"z":3689,"sc":"optic","nt":"acetylcholine","ct":"Lawf1"},{"x":133999,"y":50457,"z":3296,"sc":"central","nt":"acetylcholine","ct":"vDeltaL"},{"x":87688,"y":68864,"z":6601,"sc":"visual_projection","nt":"acetylcholine","ct":"LPC2"},{"x":110280,"y":68532,"z":1763,"sc":"sensory","nt":"gaba","ct":"JO-B1_a"},{"x":213985,"y":79544,"z":2540,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":166424,"y":74168,"z":5567,"sc":"optic","nt":"acetylcholine","ct":"T5c"},{"x":113701,"y":43457,"z":5092,"sc":"central","nt":"acetylcholine","ct":"CB2708"},{"x":147758,"y":66875,"z":3158,"sc":"descending","nt":"glutamate","ct":"DNb07"},{"x":48432,"y":58826,"z":3799,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":180501,"y":95035,"z":3525,"sc":"optic","nt":"gaba","ct":"C2"},{"x":202652,"y":88592,"z":4706,"sc":"optic","nt":"gaba","ct":"Mi2"},{"x":134140,"y":82210,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_61"},{"x":66214,"y":74022,"z":3499,"sc":"optic","nt":"acetylcholine","ct":"Dm9"},{"x":175999,"y":50900,"z":4755,"sc":"optic","nt":"glutamate","ct":"TmY5a"},{"x":129134,"y":73766,"z":5793,"sc":"ascending","nt":"na","ct":""},{"x":164888,"y":72776,"z":3418,"sc":"central","nt":"acetylcholine","ct":"CL057,CL106"},{"x":110826,"y":59678,"z":4096,"sc":"visual_centrifugal","nt":"gaba","ct":"cL08"},{"x":175608,"y":82488,"z":2687,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe51"},{"x":138040,"y":22055,"z":3920,"sc":"sensory","nt":"serotonin","ct":""},{"x":161648,"y":78600,"z":3678,"sc":"optic","nt":"gaba","ct":"Li17"},{"x":125488,"y":22560,"z":1906,"sc":"visual_projection","nt":"acetylcholine","ct":"OCG01b"},{"x":138345,"y":81167,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_142"},{"x":136426,"y":84923,"z":5807,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_30"},{"x":162696,"y":42576,"z":4938,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":93776,"y":68992,"z":3671,"sc":"visual_projection","nt":"acetylcholine","ct":"LC17"},{"x":62475,"y":40378,"z":4905,"sc":"optic","nt":"acetylcholine","ct":"Mi15"},{"x":191192,"y":82754,"z":2291,"sc":"optic","nt":"acetylcholine","ct":"Mi15"},{"x":205984,"y":59256,"z":5698,"sc":"optic","nt":"glutamate","ct":"Dm3v"},{"x":169407,"y":45535,"z":3940,"sc":"central","nt":"gaba","ct":"LHPV2a1_d"},{"x":121970,"y":40011,"z":4487,"sc":"central","nt":"acetylcholine","ct":"SMP330a"},{"x":143164,"y":40595,"z":4323,"sc":"central","nt":"acetylcholine","ct":"vDeltaK"},{"x":145278,"y":80222,"z":4957,"sc":"descending","nt":"acetylcholine","ct":"DNge016"},{"x":177912,"y":76632,"z":2151,"sc":"optic","nt":"acetylcholine","ct":"Dm2"},{"x":163768,"y":62608,"z":819,"sc":"descending","nt":"acetylcholine","ct":"DNde003"},{"x":177008,"y":45960,"z":5352,"sc":"visual_projection","nt":"acetylcholine","ct":"LC21"},{"x":162232,"y":81752,"z":3533,"sc":"visual_projection","nt":"acetylcholine","ct":"LC15"},{"x":161372,"y":67040,"z":4808,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01a"},{"x":128520,"y":27888,"z":3862,"sc":"central","nt":"acetylcholine","ct":"vDeltaM"},{"x":67382,"y":81008,"z":3895,"sc":"optic","nt":"acetylcholine","ct":"Mi15"},{"x":59244,"y":49907,"z":5223,"sc":"optic","nt":"acetylcholine","ct":"Tm21"},{"x":118216,"y":89480,"z":2668,"sc":"descending","nt":"acetylcholine","ct":"DNge131"},{"x":130926,"y":83636,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_121"},{"x":150520,"y":51880,"z":5257,"sc":"descending","nt":"acetylcholine","ct":"DNp05"},{"x":181495,"y":81442,"z":3741,"sc":"optic","nt":"acetylcholine","ct":"T2"},{"x":72432,"y":53859,"z":5233,"sc":"optic","nt":"acetylcholine","ct":"T4a"},{"x":165336,"y":77008,"z":2712,"sc":"visual_projection","nt":"acetylcholine","ct":"LC12"},{"x":104854,"y":41268,"z":5569,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":208715,"y":66709,"z":2585,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":106367,"y":41227,"z":4370,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":139260,"y":88738,"z":3260,"sc":"visual_centrifugal","nt":"gaba","ct":"cL09"},{"x":157920,"y":28696,"z":4376,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":194411,"y":89224,"z":3747,"sc":"sensory","nt":"acetylcholine","ct":"R8"},{"x":67426,"y":39282,"z":4774,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":123960,"y":91712,"z":4054,"sc":"central","nt":"acetylcholine","ct":"CB0759"},{"x":43698,"y":96353,"z":3273,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":87607,"y":45940,"z":3905,"sc":"central","nt":"acetylcholine","ct":"CB1307"},{"x":181160,"y":69496,"z":1698,"sc":"optic","nt":"gaba","ct":"Sm06"},{"x":90853,"y":42509,"z":3398,"sc":"central","nt":"acetylcholine","ct":"LHAV6a3"},{"x":178113,"y":46354,"z":2765,"sc":"central","nt":"gaba","ct":"CB1399"},{"x":29683,"y":104893,"z":3987,"sc":"sensory","nt":"serotonin","ct":"R1-6"},{"x":107032,"y":25952,"z":4632,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":168296,"y":83424,"z":2887,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe53"},{"x":119434,"y":58004,"z":3192,"sc":"descending","nt":"acetylcholine","ct":"DNa11"},{"x":215271,"y":58092,"z":3927,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":103746,"y":55315,"z":4914,"sc":"central","nt":"acetylcholine","ct":"CB1989"},{"x":92720,"y":35008,"z":2711,"sc":"central","nt":"acetylcholine","ct":"AVLP035"},{"x":60728,"y":82315,"z":5987,"sc":"optic","nt":"acetylcholine","ct":"Tm20"},{"x":180176,"y":41968,"z":2781,"sc":"central","nt":"acetylcholine","ct":"CB2296"},{"x":213041,"y":74413,"z":2714,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":47648,"y":62223,"z":5374,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu3c"},{"x":57401,"y":87160,"z":4544,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":193535,"y":72733,"z":5668,"sc":"optic","nt":"acetylcholine","ct":"T5b"},{"x":104160,"y":46164,"z":3658,"sc":"central","nt":"gaba","ct":"SMP578"},{"x":128387,"y":83792,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_127"},{"x":102824,"y":68432,"z":5167,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP02"},{"x":85297,"y":72445,"z":6475,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP02"},{"x":59619,"y":43505,"z":3831,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":186995,"y":80844,"z":5518,"sc":"optic","nt":"acetylcholine","ct":"T5c"},{"x":164707,"y":27698,"z":3884,"sc":"central","nt":"glutamate","ct":"CB1984"},{"x":130488,"y":83685,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_SAD_30"},{"x":139301,"y":78968,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":130962,"y":81110,"z":5798,"sc":"ascending","nt":"gaba","ct":"AN_IPS_GNG_7"},{"x":41649,"y":73766,"z":3886,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":131593,"y":79354,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_80"},{"x":95672,"y":52432,"z":5184,"sc":"visual_projection","nt":"acetylcholine","ct":"LPLC1"},{"x":189925,"y":56542,"z":3533,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu4c"},{"x":135024,"y":90272,"z":4819,"sc":"descending","nt":"gaba","ct":"DNge046"},{"x":215152,"y":74624,"z":4054,"sc":"optic","nt":"glutamate","ct":"pDm8"},{"x":93313,"y":66535,"z":6330,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01a"},{"x":170616,"y":51488,"z":5403,"sc":"visual_projection","nt":"acetylcholine","ct":"LC18"},{"x":81232,"y":40312,"z":5407,"sc":"visual_projection","nt":"acetylcholine","ct":"LTe02"},{"x":144220,"y":93557,"z":3165,"sc":"sensory","nt":"acetylcholine","ct":"BM_InOm"},{"x":196225,"y":95695,"z":3998,"sc":"optic","nt":"acetylcholine","ct":"T1"},{"x":86242,"y":62637,"z":2892,"sc":"central","nt":"acetylcholine","ct":"CB2008"},{"x":138589,"y":80057,"z":5798,"sc":"ascending","nt":"glutamate","ct":"AN_GNG_IPS_5"},{"x":153694,"y":49715,"z":1524,"sc":"central","nt":"gaba","ct":"ER3w"},{"x":133270,"y":84914,"z":5798,"sc":"descending","nt":"gaba","ct":"DNg83"},{"x":131246,"y":78543,"z":5391,"sc":"ascending","nt":"serotonin","ct":"AN_SMP_1"},{"x":189360,"y":91816,"z":2714,"sc":"optic","nt":"gaba","ct":"Sm07"},{"x":139404,"y":79755,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_6"},{"x":199079,"y":64536,"z":4188,"sc":"optic","nt":"gaba","ct":"TmY15"},{"x":119000,"y":37736,"z":2660,"sc":"central","nt":"glutamate","ct":"FB9B"},{"x":87667,"y":56851,"z":6647,"sc":"visual_projection","nt":"acetylcholine","ct":"LPC1"},{"x":52920,"y":82408,"z":5603,"sc":"optic","nt":"acetylcholine","ct":"Tm9"},{"x":173190,"y":68813,"z":5234,"sc":"optic","nt":"acetylcholine","ct":"Li06"},{"x":123142,"y":36889,"z":4022,"sc":"descending","nt":"acetylcholine","ct":"DNp63"},{"x":103408,"y":25856,"z":2386,"sc":"central","nt":"acetylcholine","ct":"SLP393"},{"x":129895,"y":83416,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_PVLP_2"},{"x":58534,"y":53002,"z":4939,"sc":"optic","nt":"gaba","ct":"Mi4"},{"x":194826,"y":78632,"z":3417,"sc":"optic","nt":"acetylcholine","ct":"Dm2"},{"x":167699,"y":53358,"z":4524,"sc":"central","nt":"gaba","ct":"AVLP486"},{"x":210734,"y":68436,"z":2798,"sc":"sensory","nt":"acetylcholine","ct":"R8"},{"x":62056,"y":76424,"z":3929,"sc":"optic","nt":"acetylcholine","ct":"L5"},{"x":136906,"y":81610,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_ADMN_2"},{"x":204976,"y":58187,"z":5100,"sc":"optic","nt":"acetylcholine","ct":"Tm7"},{"x":160536,"y":84960,"z":3270,"sc":"descending","nt":"glutamate","ct":"DNge055"},{"x":179464,"y":76176,"z":5783,"sc":"optic","nt":"acetylcholine","ct":"T5d"},{"x":115571,"y":86696,"z":2112,"sc":"central","nt":"gaba","ct":"CB0717"},{"x":190907,"y":87775,"z":3379,"sc":"optic","nt":"acetylcholine","ct":"Tm20"},{"x":59046,"y":68297,"z":5486,"sc":"optic","nt":"acetylcholine","ct":"Tm27"},{"x":168024,"y":75136,"z":2653,"sc":"visual_projection","nt":"acetylcholine","ct":"LC17"},{"x":48126,"y":52211,"z":4018,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":59830,"y":83875,"z":4464,"sc":"optic","nt":"glutamate","ct":"Dm1"},{"x":62733,"y":72967,"z":4160,"sc":"optic","nt":"acetylcholine","ct":"Tm4"},{"x":53833,"y":65538,"z":5499,"sc":"optic","nt":"acetylcholine","ct":"TmY4"},{"x":126180,"y":55290,"z":762,"sc":"sensory","nt":"acetylcholine","ct":"ORN_DM1"},{"x":127912,"y":89792,"z":4926,"sc":"central","nt":"na","ct":""},{"x":177848,"y":46098,"z":2763,"sc":"central","nt":"gaba","ct":"CB1860"},{"x":38419,"y":104843,"z":3554,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":93273,"y":51705,"z":5076,"sc":"visual_projection","nt":"acetylcholine","ct":"LPLC4"},{"x":171184,"y":76792,"z":2800,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe51"},{"x":133988,"y":77483,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":165472,"y":76328,"z":5254,"sc":"optic","nt":"glutamate","ct":"Y11"},{"x":125086,"y":79026,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":""},{"x":142576,"y":69805,"z":2371,"sc":"descending","nt":"acetylcholine","ct":"DNbe006"},{"x":140182,"y":89368,"z":3137,"sc":"descending","nt":"acetylcholine","ct":"DNge024"},{"x":172480,"y":80704,"z":2919,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe52"},{"x":172736,"y":79616,"z":2645,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe51"},{"x":185228,"y":63785,"z":2565,"sc":"optic","nt":"acetylcholine","ct":"Tm16"},{"x":126143,"y":79823,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":""},{"x":124880,"y":78126,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":132289,"y":79359,"z":5798,"sc":"ascending","nt":"serotonin","ct":"AN_GNG_194"},{"x":136920,"y":49376,"z":723,"sc":"visual_centrifugal","nt":"gaba","ct":"mALC3"},{"x":88288,"y":70832,"z":3293,"sc":"visual_centrifugal","nt":"glutamate","ct":"cM08b"},{"x":145576,"y":78877,"z":4328,"sc":"descending","nt":"acetylcholine","ct":"DNge113"},{"x":133801,"y":80148,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_VES_WED_3"},{"x":136659,"y":81386,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_ADMN_4"},{"x":182408,"y":49688,"z":2954,"sc":"visual_centrifugal","nt":"glutamate","ct":"cM09"},{"x":190463,"y":56336,"z":5730,"sc":"optic","nt":"acetylcholine","ct":"T4d"},{"x":60678,"y":52962,"z":5792,"sc":"optic","nt":"gaba","ct":"Mi4"},{"x":122000,"y":54448,"z":5529,"sc":"visual_centrifugal","nt":"glutamate","ct":"cL02b"},{"x":158136,"y":82168,"z":3474,"sc":"descending","nt":"acetylcholine","ct":"DNge049"},{"x":73480,"y":84368,"z":6506,"sc":"optic","nt":"gaba","ct":"C3"},{"x":195447,"y":63921,"z":3529,"sc":"optic","nt":"gaba","ct":"Sm05"},{"x":79808,"y":53672,"z":3022,"sc":"central","nt":"acetylcholine","ct":"AVLP219c"},{"x":72826,"y":84023,"z":5232,"sc":"optic","nt":"acetylcholine","ct":"Sm02"},{"x":155754,"y":58157,"z":3164,"sc":"central","nt":"acetylcholine","ct":"WED116"},{"x":128774,"y":82980,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_26"},{"x":105643,"y":54362,"z":4794,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP03a"},{"x":48383,"y":60264,"z":3823,"sc":"sensory","nt":"glutamate","ct":"R7"},{"x":182856,"y":79816,"z":2163,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu3c"},{"x":208711,"y":51901,"z":2548,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":113967,"y":39422,"z":5332,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":172904,"y":81672,"z":3070,"sc":"optic","nt":"acetylcholine","ct":"MLt2"},{"x":109224,"y":68491,"z":1291,"sc":"sensory","nt":"acetylcholine","ct":"JO-EV5"},{"x":120004,"y":62450,"z":4172,"sc":"descending","nt":"acetylcholine","ct":"DNa04"},{"x":216654,"y":79622,"z":3629,"sc":"sensory","nt":"gaba","ct":"R1-6"},{"x":149526,"y":86916,"z":4099,"sc":"descending","nt":"serotonin","ct":"DNge094"},{"x":80264,"y":44568,"z":4352,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10e"},{"x":95648,"y":72808,"z":3407,"sc":"motor","nt":"acetylcholine","ct":"CB0886"},{"x":122024,"y":55060,"z":5426,"sc":"visual_centrifugal","nt":"glutamate","ct":"OLVC7"},{"x":130725,"y":82260,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_60"},{"x":47019,"y":67310,"z":4534,"sc":"sensory","nt":"acetylcholine","ct":"R7"},{"x":199235,"y":60595,"z":5943,"sc":"optic","nt":"acetylcholine","ct":"T2a"},{"x":130550,"y":84231,"z":5798,"sc":"ascending","nt":"gaba","ct":"AN_GNG_PRW_1"},{"x":144503,"y":93112,"z":3123,"sc":"sensory","nt":"acetylcholine","ct":"BM_InOm"},{"x":150984,"y":67387,"z":2861,"sc":"central","nt":"glutamate","ct":"CB2674"},{"x":164776,"y":83376,"z":2915,"sc":"motor","nt":"acetylcholine","ct":"CB0845"},{"x":118014,"y":92304,"z":3415,"sc":"sensory","nt":"acetylcholine","ct":"LB3"},{"x":117214,"y":90083,"z":3252,"sc":"sensory","nt":"acetylcholine","ct":"BM_Taste"},{"x":91480,"y":65464,"z":6545,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC3"},{"x":95768,"y":68552,"z":3829,"sc":"visual_projection","nt":"acetylcholine","ct":"LC31a"},{"x":61213,"y":45658,"z":5308,"sc":"optic","nt":"glutamate","ct":"Dm3p"},{"x":180616,"y":36496,"z":4246,"sc":"central","nt":"acetylcholine","ct":"CB4237"},{"x":163792,"y":56264,"z":801,"sc":"central","nt":"acetylcholine","ct":"CB1090"},{"x":46160,"y":98777,"z":3202,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":123880,"y":90136,"z":3198,"sc":"descending","nt":"gaba","ct":"DNg70"},{"x":183248,"y":74288,"z":1684,"sc":"optic","nt":"acetylcholine","ct":"T1"},{"x":177760,"y":83528,"z":5284,"sc":"optic","nt":"acetylcholine","ct":"T4b"},{"x":94960,"y":70720,"z":3435,"sc":"visual_projection","nt":"glutamate","ct":"LC12"},{"x":167920,"y":72976,"z":2708,"sc":"visual_projection","nt":"acetylcholine","ct":"LC12"},{"x":128407,"y":79623,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_DMetaN_5"},{"x":114809,"y":59421,"z":1472,"sc":"central","nt":"acetylcholine","ct":"VM1_lPN"},{"x":103568,"y":78160,"z":3370,"sc":"motor","nt":"acetylcholine","ct":"CB0789"},{"x":178768,"y":82272,"z":2054,"sc":"optic","nt":"glutamate","ct":"TmY5a"},{"x":60048,"y":59737,"z":3461,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":149161,"y":36402,"z":3801,"sc":"central","nt":"acetylcholine","ct":"SLP405"},{"x":120132,"y":48053,"z":4953,"sc":"central","nt":"acetylcholine","ct":"FS4A"},{"x":206376,"y":58286,"z":3873,"sc":"sensory","nt":"glutamate","ct":"R7"},{"x":158132,"y":43509,"z":4293,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":195475,"y":85850,"z":3636,"sc":"optic","nt":"acetylcholine","ct":"Tm4"},{"x":64211,"y":58889,"z":3915,"sc":"optic","nt":"glutamate","ct":"L5"},{"x":45312,"y":104713,"z":3731,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":124314,"y":85221,"z":5086,"sc":"central","nt":"glutamate","ct":"CB2792"},{"x":94663,"y":50421,"z":5137,"sc":"central","nt":"acetylcholine","ct":"PLP155"},{"x":50980,"y":43746,"z":4162,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":208187,"y":87557,"z":2461,"sc":"sensory","nt":"gaba","ct":"R1-6"},{"x":56190,"y":46160,"z":4185,"sc":"optic","nt":"gaba","ct":"L1"},{"x":141816,"y":40171,"z":4178,"sc":"central","nt":"acetylcholine","ct":"PFNm"},{"x":137001,"y":81960,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_179"},{"x":139231,"y":64113,"z":2061,"sc":"central","nt":"glutamate","ct":"mAL4"},{"x":60290,"y":67594,"z":3284,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":200034,"y":80057,"z":3944,"sc":"optic","nt":"acetylcholine","ct":"TmY3"},{"x":112583,"y":57969,"z":5079,"sc":"central","nt":"acetylcholine","ct":"CB2037"},{"x":195021,"y":75234,"z":5650,"sc":"optic","nt":"acetylcholine","ct":"T2"},{"x":179080,"y":75328,"z":1737,"sc":"optic","nt":"gaba","ct":"T1"},{"x":65392,"y":67665,"z":5468,"sc":"optic","nt":"acetylcholine","ct":"Tm21"},{"x":163592,"y":31096,"z":4695,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":146936,"y":38280,"z":695,"sc":"central","nt":"dopamine","ct":"PAM10"},{"x":143047,"y":45684,"z":2379,"sc":"central","nt":"gaba","ct":"ER3p_a"},{"x":143938,"y":48424,"z":3648,"sc":"central","nt":"glutamate","ct":"LAL090"},{"x":133552,"y":82415,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_89"},{"x":130368,"y":83233,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_GNG_8"},{"x":145282,"y":46601,"z":2707,"sc":"central","nt":"acetylcholine","ct":"CL333"},{"x":108782,"y":49899,"z":2715,"sc":"central","nt":"gaba","ct":"CB0744"},{"x":98182,"y":33767,"z":4992,"sc":"central","nt":"acetylcholine","ct":"CB3133"},{"x":200677,"y":95730,"z":4692,"sc":"optic","nt":"acetylcholine","ct":"Tm9"},{"x":156856,"y":26688,"z":3888,"sc":"endocrine","nt":"serotonin","ct":"lNSC_unknown"},{"x":136696,"y":74464,"z":5534,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_199"},{"x":191769,"y":60292,"z":2373,"sc":"optic","nt":"acetylcholine","ct":"Tm27"},{"x":194068,"y":74404,"z":3276,"sc":"optic","nt":"acetylcholine","ct":"Dm2"},{"x":187357,"y":91279,"z":3523,"sc":"optic","nt":"acetylcholine","ct":"TmY9q__perp"},{"x":99059,"y":58438,"z":5619,"sc":"visual_projection","nt":"acetylcholine","ct":"LC45a"},{"x":125439,"y":83169,"z":5000,"sc":"descending","nt":"acetylcholine","ct":"DNge045"},{"x":127712,"y":78974,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":121328,"y":84233,"z":3328,"sc":"sensory","nt":"acetylcholine","ct":"BM_InOm"},{"x":142781,"y":46683,"z":4644,"sc":"descending","nt":"acetylcholine","ct":"DNp104"},{"x":142598,"y":84132,"z":3167,"sc":"central","nt":"acetylcholine","ct":"CB0983"},{"x":65847,"y":81631,"z":3379,"sc":"optic","nt":"glutamate","ct":"Dm12"},{"x":180296,"y":46800,"z":4195,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10a"},{"x":120616,"y":83110,"z":1807,"sc":"central","nt":"glutamate","ct":"CB2456"},{"x":206639,"y":64964,"z":2436,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":212726,"y":51943,"z":3895,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":179392,"y":52520,"z":3193,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10c-1"},{"x":203816,"y":71621,"z":2220,"sc":"sensory","nt":"gaba","ct":"R1-6"},{"x":178080,"y":33693,"z":3121,"sc":"central","nt":"glutamate","ct":"CB1352"},{"x":119798,"y":90520,"z":3599,"sc":"sensory","nt":"acetylcholine","ct":"BM_vOcci_vPoOr"},{"x":89440,"y":49840,"z":4450,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10c-1"},{"x":161795,"y":66716,"z":4809,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01a"},{"x":188469,"y":78394,"z":3545,"sc":"optic","nt":"glutamate","ct":"Tm5e"},{"x":109592,"y":29248,"z":4888,"sc":"central","nt":"dopamine","ct":"KCg-d"},{"x":119096,"y":65312,"z":5397,"sc":"motor","nt":"acetylcholine","ct":"CB0831"},{"x":123211,"y":39388,"z":4487,"sc":"central","nt":"acetylcholine","ct":"hDeltaI"},{"x":178056,"y":47088,"z":5390,"sc":"visual_projection","nt":"acetylcholine","ct":"LC21"},{"x":125885,"y":77546,"z":5798,"sc":"sensory_ascending","nt":"glutamate","ct":"SA_DMT_DMetaN_9"},{"x":91248,"y":75448,"z":3621,"sc":"visual_projection","nt":"acetylcholine","ct":"LC24"},{"x":99544,"y":65944,"z":1532,"sc":"descending","nt":"acetylcholine","ct":"DNde005"},{"x":60060,"y":83248,"z":4101,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":186971,"y":92763,"z":3760,"sc":"optic","nt":"acetylcholine","ct":"Tm20"},{"x":189268,"y":66347,"z":4079,"sc":"optic","nt":"gaba","ct":"C2"},{"x":179673,"y":79467,"z":4649,"sc":"optic","nt":"acetylcholine","ct":"TmY20"},{"x":126799,"y":80474,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_IPS_16"},{"x":129658,"y":77670,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":134126,"y":82059,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_187"},{"x":99405,"y":41531,"z":2263,"sc":"central","nt":"acetylcholine","ct":"SMP018"},{"x":87536,"y":80712,"z":3773,"sc":"optic","nt":"gaba","ct":"Dm10"},{"x":137433,"y":81446,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_ADMN_11"},{"x":70200,"y":77349,"z":6556,"sc":"optic","nt":"acetylcholine","ct":"C2"},{"x":188733,"y":64712,"z":3061,"sc":"optic","nt":"acetylcholine","ct":"Tm20"},{"x":201256,"y":93881,"z":3269,"sc":"sensory","nt":"acetylcholine","ct":"R8"},{"x":152347,"y":59517,"z":4651,"sc":"central","nt":"acetylcholine","ct":"WED163c"},{"x":149968,"y":86889,"z":4099,"sc":"descending","nt":"acetylcholine","ct":"DNge091"},{"x":37594,"y":67248,"z":4492,"sc":"optic","nt":"acetylcholine","ct":"L3"},{"x":189835,"y":91639,"z":2955,"sc":"sensory","nt":"acetylcholine","ct":"R7"},{"x":209501,"y":81539,"z":5496,"sc":"optic","nt":"acetylcholine","ct":"Mi15"},{"x":115199,"y":89149,"z":2892,"sc":"central","nt":"gaba","ct":"CB0565"},{"x":129635,"y":83518,"z":5798,"sc":"ascending","nt":"gaba","ct":"AN_GNG_FLA_1"},{"x":197372,"y":91977,"z":2117,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":103964,"y":55068,"z":4915,"sc":"central","nt":"acetylcholine","ct":"CB1140"},{"x":102128,"y":67800,"z":5345,"sc":"optic","nt":"glutamate","ct":"LMt2"},{"x":82848,"y":46560,"z":4385,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10d"},{"x":140312,"y":75930,"z":4436,"sc":"descending","nt":"glutamate","ct":"DNge123"},{"x":105962,"y":40696,"z":5569,"sc":"central","nt":"dopamine","ct":"KCab"},{"x":178280,"y":45096,"z":4961,"sc":"visual_projection","nt":"acetylcholine","ct":"LC18"},{"x":206330,"y":57460,"z":2252,"sc":"sensory","nt":"gaba","ct":"R1-6"},{"x":134683,"y":82934,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_AVLP_2"},{"x":203916,"y":75833,"z":3817,"sc":"optic","nt":"acetylcholine","ct":"Tm1"},{"x":119433,"y":85650,"z":4286,"sc":"sensory","nt":"acetylcholine","ct":"BM_Vt_PoOc"},{"x":54862,"y":65213,"z":4804,"sc":"optic","nt":"acetylcholine","ct":"Tm4"},{"x":135217,"y":77900,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_DMetaN_12"},{"x":118210,"y":85807,"z":3228,"sc":"sensory","nt":"acetylcholine","ct":"BM_InOm"},{"x":160016,"y":75392,"z":4180,"sc":"visual_projection","nt":"acetylcholine","ct":"LC13"},{"x":98622,"y":64862,"z":5949,"sc":"visual_projection","nt":"gaba","ct":"Nod2"},{"x":86968,"y":71464,"z":3764,"sc":"optic","nt":"gaba","ct":"Pm02"},{"x":108536,"y":84336,"z":4049,"sc":"motor","nt":"acetylcholine","ct":"CB0762"},{"x":157957,"y":28360,"z":2627,"sc":"central","nt":"acetylcholine","ct":"SLP041"},{"x":180850,"y":91292,"z":5109,"sc":"optic","nt":"acetylcholine","ct":"T2"},{"x":104624,"y":81360,"z":3717,"sc":"motor","nt":"acetylcholine","ct":"CB0845"},{"x":114104,"y":70680,"z":847,"sc":"central","nt":"glutamate","ct":"vLN26"},{"x":125850,"y":76878,"z":5798,"sc":"sensory_ascending","nt":"na","ct":""},{"x":132291,"y":77114,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_74"},{"x":130698,"y":83801,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_VTV_10"},{"x":80848,"y":59000,"z":2815,"sc":"visual_centrifugal","nt":"acetylcholine","ct":"aMe4"},{"x":50200,"y":63956,"z":5425,"sc":"optic","nt":"acetylcholine","ct":"L5"},{"x":113080,"y":49528,"z":5194,"sc":"endocrine","nt":"octopamine","ct":"ITP"},{"x":90776,"y":72632,"z":6528,"sc":"optic","nt":"glutamate","ct":"Tlp4"},{"x":38889,"y":82388,"z":3865,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":81505,"y":66870,"z":6941,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC1"},{"x":213282,"y":75918,"z":4891,"sc":"optic","nt":"acetylcholine","ct":"Tm7"},{"x":188066,"y":70651,"z":1996,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu2b"},{"x":62841,"y":83427,"z":6177,"sc":"optic","nt":"acetylcholine","ct":"Mi10"},{"x":99520,"y":77328,"z":3424,"sc":"descending","nt":"glutamate","ct":"DNge055"},{"x":198857,"y":50876,"z":3469,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu3a"},{"x":41394,"y":88326,"z":3605,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":177120,"y":75968,"z":5638,"sc":"optic","nt":"acetylcholine","ct":"T4d"},{"x":128671,"y":78950,"z":5798,"sc":"sensory_ascending","nt":"serotonin","ct":""},{"x":86394,"y":79695,"z":4475,"sc":"optic","nt":"acetylcholine","ct":"T2a"},{"x":118721,"y":86439,"z":2695,"sc":"descending","nt":"gaba","ct":"DNge129"},{"x":137261,"y":78763,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":178944,"y":49096,"z":3736,"sc":"visual_projection","nt":"acetylcholine","ct":"LC10c-2"},{"x":88537,"y":61720,"z":3158,"sc":"central","nt":"acetylcholine","ct":"AVLP136"},{"x":89123,"y":39634,"z":3552,"sc":"central","nt":"glutamate","ct":"CB2771"},{"x":213265,"y":73671,"z":2656,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":88216,"y":81368,"z":3938,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe02"},{"x":107856,"y":61288,"z":2296,"sc":"descending","nt":"glutamate","ct":"DNb02"},{"x":101594,"y":64747,"z":5356,"sc":"visual_centrifugal","nt":"gaba","ct":"LT70"},{"x":134157,"y":78039,"z":5798,"sc":"ascending","nt":"gaba","ct":"AN_GNG_IPS_14"},{"x":200647,"y":61849,"z":4579,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu3b"},{"x":183116,"y":47478,"z":5020,"sc":"optic","nt":"acetylcholine","ct":"T5a"},{"x":151438,"y":64979,"z":159,"sc":"sensory","nt":"acetylcholine","ct":"ORN_VA1v"},{"x":197811,"y":61459,"z":5642,"sc":"visual_projection","nt":"gaba","ct":"TmY14"},{"x":159184,"y":24336,"z":3849,"sc":"central","nt":"glutamate","ct":"SMP535"},{"x":124925,"y":41425,"z":1710,"sc":"central","nt":"dopamine","ct":"PAM08"},{"x":172048,"y":76208,"z":2361,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe46"},{"x":36912,"y":57668,"z":4852,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":131065,"y":31894,"z":2749,"sc":"endocrine","nt":"glutamate","ct":"mNSC_unknown"},{"x":179736,"y":54640,"z":3120,"sc":"visual_projection","nt":"acetylcholine","ct":"LC28c"},{"x":85272,"y":44232,"z":4964,"sc":"visual_projection","nt":"acetylcholine","ct":"LC9"},{"x":93920,"y":49680,"z":5289,"sc":"visual_projection","nt":"acetylcholine","ct":"LC22"},{"x":207148,"y":65024,"z":3057,"sc":"optic","nt":"acetylcholine","ct":"L4"},{"x":103646,"y":61208,"z":3934,"sc":"central","nt":"gaba","ct":"CB4176"},{"x":163424,"y":83496,"z":2919,"sc":"central","nt":"acetylcholine","ct":"CB0152"},{"x":123361,"y":89268,"z":3636,"sc":"motor","nt":"acetylcholine","ct":"CB0762"},{"x":136235,"y":81581,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_179"},{"x":158736,"y":34847,"z":2461,"sc":"central","nt":"glutamate","ct":"SLP026"},{"x":218466,"y":70596,"z":3470,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":86176,"y":64776,"z":6745,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC2"},{"x":138062,"y":49101,"z":4681,"sc":"central","nt":"glutamate","ct":"PS289"},{"x":200176,"y":55059,"z":4521,"sc":"optic","nt":"acetylcholine","ct":"Tm27"},{"x":142819,"y":92913,"z":2988,"sc":"sensory","nt":"acetylcholine","ct":"LB1e"},{"x":178344,"y":44904,"z":4322,"sc":"visual_projection","nt":"acetylcholine","ct":"LC29"},{"x":170037,"y":41402,"z":4551,"sc":"central","nt":"glutamate","ct":"LHPV4a5, LHPV4k1"},{"x":181440,"y":41408,"z":3205,"sc":"central","nt":"gaba","ct":"CB1381"},{"x":111992,"y":45648,"z":5577,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":177690,"y":47038,"z":2766,"sc":"central","nt":"glutamate","ct":"CB2387"},{"x":113442,"y":59369,"z":3072,"sc":"central","nt":"gaba","ct":"LAL046"},{"x":179087,"y":77940,"z":3050,"sc":"optic","nt":"gaba","ct":"C2"},{"x":174880,"y":75984,"z":2615,"sc":"optic","nt":"acetylcholine","ct":"MLt4"},{"x":199050,"y":69809,"z":4268,"sc":"visual_projection","nt":"acetylcholine","ct":"MeTu3b"},{"x":95808,"y":72736,"z":3854,"sc":"visual_projection","nt":"acetylcholine","ct":"LC16"},{"x":100994,"y":50085,"z":5080,"sc":"central","nt":"gaba","ct":"PLP086a"},{"x":177648,"y":88360,"z":2551,"sc":"optic","nt":"acetylcholine","ct":"Tm4"},{"x":123273,"y":46499,"z":4791,"sc":"descending","nt":"acetylcholine","ct":"DNpe011"},{"x":73984,"y":59901,"z":5353,"sc":"optic","nt":"acetylcholine","ct":"T5a"},{"x":102308,"y":50565,"z":5134,"sc":"visual_projection","nt":"gaba","ct":"LT43"},{"x":72029,"y":46837,"z":4168,"sc":"optic","nt":"acetylcholine","ct":"Tm3"},{"x":179352,"y":45024,"z":4660,"sc":"visual_projection","nt":"acetylcholine","ct":"LC9"},{"x":151000,"y":57744,"z":5212,"sc":"central","nt":"acetylcholine","ct":"LAL171,LAL172"},{"x":144406,"y":38888,"z":3762,"sc":"central","nt":"acetylcholine","ct":"SMP461"},{"x":109285,"y":74687,"z":2158,"sc":"sensory","nt":"acetylcholine","ct":"JO-FD2"},{"x":161456,"y":75224,"z":3944,"sc":"optic","nt":"gaba","ct":"Li17"},{"x":203819,"y":95465,"z":3440,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":68208,"y":72280,"z":6834,"sc":"optic","nt":"acetylcholine","ct":"T3"},{"x":115392,"y":61113,"z":1989,"sc":"central","nt":"gaba","ct":"CB2711"},{"x":90448,"y":76368,"z":3766,"sc":"visual_projection","nt":"acetylcholine","ct":"MTe53"},{"x":97392,"y":70832,"z":3885,"sc":"visual_projection","nt":"acetylcholine","ct":"LC17"},{"x":60738,"y":84982,"z":5079,"sc":"optic","nt":"gaba","ct":"Dm10"},{"x":156196,"y":70473,"z":5048,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP01a"},{"x":127582,"y":80752,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DMT_ADMN_7"},{"x":192621,"y":94786,"z":4445,"sc":"optic","nt":"acetylcholine","ct":"Tm1"},{"x":167025,"y":34929,"z":2042,"sc":"central","nt":"acetylcholine","ct":"CB3697"},{"x":80640,"y":55792,"z":2801,"sc":"central","nt":"acetylcholine","ct":"AVLP157"},{"x":104208,"y":75944,"z":4113,"sc":"central","nt":"gaba","ct":"CB0265"},{"x":131579,"y":77888,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_MDA_1"},{"x":90984,"y":73048,"z":2926,"sc":"central","nt":"acetylcholine","ct":"CB1565"},{"x":167055,"y":35847,"z":1998,"sc":"central","nt":"glutamate","ct":"PVLP008"},{"x":51559,"y":56896,"z":3728,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":151921,"y":42146,"z":2086,"sc":"descending","nt":"acetylcholine","ct":"DNa16"},{"x":155290,"y":41948,"z":3896,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":91929,"y":51131,"z":4500,"sc":"central","nt":"acetylcholine","ct":"PLP192"},{"x":169338,"y":42298,"z":2723,"sc":"central","nt":"glutamate","ct":"CB1005"},{"x":85432,"y":65136,"z":6836,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC2"},{"x":118753,"y":87263,"z":2064,"sc":"endocrine","nt":"acetylcholine","ct":"Hugin-RG"},{"x":84053,"y":72268,"z":6455,"sc":"visual_centrifugal","nt":"gaba","ct":"cLP03a"},{"x":100032,"y":71352,"z":4415,"sc":"visual_projection","nt":"glutamate","ct":"LC20b"},{"x":130296,"y":82842,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_94"},{"x":94454,"y":37846,"z":4788,"sc":"central","nt":"glutamate","ct":"LHPV4g1"},{"x":162112,"y":39064,"z":4975,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":158936,"y":64712,"z":529,"sc":"central","nt":"gaba","ct":"l2LN20"},{"x":106637,"y":57010,"z":693,"sc":"sensory","nt":"acetylcholine","ct":"ORN_DA1"},{"x":149260,"y":34086,"z":2813,"sc":"central","nt":"glutamate","ct":"FB6R"},{"x":196136,"y":86161,"z":2713,"sc":"optic","nt":"acetylcholine","ct":"Tm27"},{"x":135576,"y":89856,"z":5164,"sc":"descending","nt":"gaba","ct":"DNge087"},{"x":131837,"y":34572,"z":2543,"sc":"endocrine","nt":"octopamine","ct":"IPC"},{"x":142583,"y":70640,"z":2369,"sc":"visual_centrifugal","nt":"acetylcholine","ct":"OCC01b"},{"x":133963,"y":41171,"z":3230,"sc":"central","nt":"acetylcholine","ct":"FS1A"},{"x":217412,"y":83047,"z":3263,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":56391,"y":72606,"z":5117,"sc":"optic","nt":"acetylcholine","ct":"Tm9"},{"x":129978,"y":81590,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_AVLP_1"},{"x":35130,"y":100461,"z":3584,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":43126,"y":84211,"z":3543,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":130063,"y":79027,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":112476,"y":36826,"z":1149,"sc":"central","nt":"gaba","ct":"CRE043"},{"x":183790,"y":51981,"z":2917,"sc":"optic","nt":"glutamate","ct":"Dm3q"},{"x":156704,"y":48680,"z":4866,"sc":"descending","nt":"acetylcholine","ct":"DNp71"},{"x":125541,"y":79612,"z":5798,"sc":"sensory_ascending","nt":"serotonin","ct":""},{"x":97616,"y":73784,"z":2910,"sc":"motor","nt":"acetylcholine","ct":"CB0804"},{"x":132535,"y":84073,"z":5798,"sc":"ascending","nt":"gaba","ct":"AN_GNG_101"},{"x":90800,"y":67472,"z":6548,"sc":"visual_projection","nt":"acetylcholine","ct":"LLPC2"},{"x":67549,"y":57065,"z":3868,"sc":"optic","nt":"glutamate","ct":"Dm15"},{"x":52988,"y":67687,"z":6076,"sc":"optic","nt":"acetylcholine","ct":"Tm9"},{"x":146952,"y":88236,"z":1546,"sc":"sensory","nt":"acetylcholine","ct":"aPhM3"},{"x":120941,"y":80955,"z":5027,"sc":"descending","nt":"acetylcholine","ct":"DNg05_b"},{"x":195647,"y":44582,"z":5202,"sc":"optic","nt":"gaba","ct":"Sm05"},{"x":166168,"y":57424,"z":5003,"sc":"visual_projection","nt":"acetylcholine","ct":"LC11"},{"x":127464,"y":72280,"z":5152,"sc":"descending","nt":"acetylcholine","ct":"DNp17"},{"x":218193,"y":61725,"z":3174,"sc":"optic","nt":"acetylcholine","ct":"L2"},{"x":124750,"y":74238,"z":1430,"sc":"sensory","nt":"serotonin","ct":"ENS5"},{"x":176936,"y":46440,"z":4473,"sc":"visual_projection","nt":"acetylcholine","ct":"LPLC4"},{"x":120078,"y":45802,"z":4760,"sc":"central","nt":"acetylcholine","ct":"PFNp"},{"x":86764,"y":45737,"z":3598,"sc":"central","nt":"acetylcholine","ct":"AVLP312a"},{"x":35599,"y":61241,"z":4702,"sc":"sensory","nt":"serotonin","ct":"R1-6"},{"x":164579,"y":33538,"z":3951,"sc":"central","nt":"acetylcholine","ct":"CB0966"},{"x":212118,"y":83905,"z":2277,"sc":"sensory","nt":"glutamate","ct":"R7"},{"x":133669,"y":82207,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_multi_98"},{"x":39921,"y":52621,"z":4853,"sc":"sensory","nt":"acetylcholine","ct":"R1-6"},{"x":174576,"y":75768,"z":2152,"sc":"optic","nt":"gaba","ct":"Dm10"},{"x":137509,"y":80882,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":""},{"x":128931,"y":82296,"z":5798,"sc":"sensory_ascending","nt":"acetylcholine","ct":"SA_DLV"},{"x":185531,"y":89543,"z":2827,"sc":"optic","nt":"acetylcholine","ct":"Tm25"},{"x":105280,"y":80376,"z":2913,"sc":"descending","nt":"glutamate","ct":"DNge026"},{"x":74617,"y":83382,"z":3643,"sc":"sensory","nt":"gaba","ct":"R8"},{"x":203544,"y":45468,"z":5231,"sc":"optic","nt":"acetylcholine","ct":"Mi1"},{"x":155273,"y":41868,"z":3896,"sc":"central","nt":"dopamine","ct":"KCg-m"},{"x":54911,"y":46054,"z":3870,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":80952,"y":67648,"z":2793,"sc":"optic","nt":"glutamate","ct":"Mi9"},{"x":79504,"y":45736,"z":3919,"sc":"visual_projection","nt":"glutamate","ct":"MTe11"},{"x":94032,"y":28920,"z":4767,"sc":"central","nt":"glutamate","ct":"CB3464"},{"x":203329,"y":67366,"z":2504,"sc":"sensory","nt":"glutamate","ct":"R1-6"},{"x":127169,"y":81794,"z":5798,"sc":"descending","nt":"acetylcholine","ct":"DNg107"},{"x":154663,"y":27546,"z":3562,"sc":"central","nt":"acetylcholine","ct":"SMP356"},{"x":124703,"y":79533,"z":5798,"sc":"ascending","nt":"acetylcholine","ct":"AN_GNG_IPS_11"},{"x":117904,"y":88542,"z":2698,"sc":"central","nt":"gaba","ct":"CB0438"},{"x":216893,"y":55596,"z":3699,"sc":"sensory","nt":"na","ct":"R1-6"},{"x":194763,"y":58917,"z":5655,"sc":"optic","nt":"acetylcholine","ct":"T3"}];
+</script>
+<script>
+/* ============================================================
+   Connectome Combat Lab — neuroevolution fly duel sandbox
+   Real data: neuron cell-type identities, counts, and 3D
+   positions from the male Drosophila connectome annotation file.
+   Wiring/weights are evolved, not measured synapses.
+   ============================================================ */
+
+(function(){
+'use strict';
+
+const PALETTE = {
+  acetylcholine:'#4ce6da', gaba:'#ff5fc4', glutamate:'#ffb648',
+  dopamine:'#9dff4c', serotonin:'#b46bff', octopamine:'#ff7a4d', na:'#5a6b82'
+};
+const SC_COLOR = {
+  optic:'#4ce6da', central:'#b46bff', sensory:'#ffb648', visual_projection:'#4ce6da',
+  ascending:'#9dff4c', descending:'#ff5fc4', sensory_ascending:'#ffb648',
+  visual_centrifugal:'#4ce6da', motor:'#ff7a4d', endocrine:'#ff7a4d'
+};
+const COLOR_A = 0x4ce6da, COLOR_B = 0xff5fc4;
+
+/* ---------- Real neuron picks for sensory/motor labeling ---------- */
+const visualPicks = NEURON_META.top_visual_types.slice(0,7);
+const descPicks = NEURON_META.top_descending_types.slice(0,3);
+const INPUT_LABELS = [
+  {fn:'distance to opponent', tag: visualPicks[0][0], cnt: visualPicks[0][1]},
+  {fn:'bearing angle', tag: visualPicks[1][0], cnt: visualPicks[1][1]},
+  {fn:'own vitality', tag: visualPicks[2][0], cnt: visualPicks[2][1]},
+  {fn:'opponent vitality', tag: visualPicks[3][0], cnt: visualPicks[3][1]},
+  {fn:'opponent lunging', tag: visualPicks[4][0], cnt: visualPicks[4][1]},
+  {fn:'wall proximity', tag: visualPicks[5][0], cnt: visualPicks[5][1]},
+  {fn:'energy reserve', tag: visualPicks[6][0], cnt: visualPicks[6][1]},
+];
+const OUTPUT_LABELS = [
+  {fn:'turn', tag: descPicks[0][0], cnt: descPicks[0][1]},
+  {fn:'thrust', tag: descPicks[1][0], cnt: descPicks[1][1]},
+  {fn:'strike / lunge', tag: descPicks[2][0], cnt: descPicks[2][1]},
+];
+
+/* ---------------------- Neural network ---------------------- */
+const N_IN=7, N_HID=9, N_OUT=3;
+function randW(){ return (Math.random()*2-1); }
+function tanh(x){ return Math.tanh(x); }
+
+class Brain{
+  constructor(w){
+    if(w){ this.w1=w.w1; this.b1=w.b1; this.w2=w.w2; this.b2=w.b2; }
+    else{
+      this.w1 = Array.from({length:N_HID},()=>Array.from({length:N_IN},randW));
+      this.b1 = Array.from({length:N_HID},randW);
+      this.w2 = Array.from({length:N_OUT},()=>Array.from({length:N_HID},randW));
+      this.b2 = Array.from({length:N_OUT},randW);
+    }
+    this.hiddenAct = new Array(N_HID).fill(0);
+    this.outAct = new Array(N_OUT).fill(0);
+  }
+  forward(inputs){
+    for(let h=0; h<N_HID; h++){
+      let s=this.b1[h];
+      for(let i=0;i<N_IN;i++) s += this.w1[h][i]*inputs[i];
+      this.hiddenAct[h] = tanh(s);
+    }
+    for(let o=0;o<N_OUT;o++){
+      let s=this.b2[o];
+      for(let h=0;h<N_HID;h++) s += this.w2[o][h]*this.hiddenAct[h];
+      this.outAct[o] = tanh(s);
+    }
+    return this.outAct;
+  }
+  static crossover(winner, loser){
+    const w1 = winner.w1.map((row,h)=> row.map((v,i)=> Math.random()<0.65 ? v : loser.w1[h][i]));
+    const b1 = winner.b1.map((v,h)=> Math.random()<0.65 ? v : loser.b1[h]);
+    const w2 = winner.w2.map((row,o)=> row.map((v,h)=> Math.random()<0.65 ? v : loser.w2[o][h]));
+    const b2 = winner.b2.map((v,o)=> Math.random()<0.65 ? v : loser.b2[o]);
+    return new Brain({w1,b1,w2,b2});
+  }
+  mutate(rate){
+    const m = rate/100;
+    const jig = v => Math.random()<m ? v + (Math.random()*2-1)*0.9 : v;
+    this.w1 = this.w1.map(row=>row.map(jig));
+    this.b1 = this.b1.map(jig);
+    this.w2 = this.w2.map(row=>row.map(jig));
+    this.b2 = this.b2.map(jig);
+  }
+  clone(){ return new Brain({
+    w1:this.w1.map(r=>r.slice()), b1:this.b1.slice(),
+    w2:this.w2.map(r=>r.slice()), b2:this.b2.slice()
+  });}
+}
+
+/* ---------------------- Three.js scene ---------------------- */
+const holder = document.getElementById('canvas-holder');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x05070c, 0.012);
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 500);
+let camAz = 0.7, camEl = 0.55, camDist = 46;
+function updateCamera(){
+  camera.position.set(
+    camDist*Math.sin(camAz)*Math.cos(camEl),
+    camDist*Math.sin(camEl)+6,
+    camDist*Math.cos(camAz)*Math.cos(camEl)
+  );
+  camera.lookAt(0,2,0);
+}
+updateCamera();
+
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:false});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+holder.appendChild(renderer.domElement);
+
+function resize(){
+  const w = holder.clientWidth, h = holder.clientHeight;
+  renderer.setSize(w,h);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+/* --- lighting --- */
+scene.add(new THREE.HemisphereLight(0x2a3550, 0x05070c, 0.9));
+const keyLight = new THREE.PointLight(0x4ce6da, 1.4, 90);
+keyLight.position.set(18,26,14);
+scene.add(keyLight);
+const rimLight = new THREE.PointLight(0xff5fc4, 1.1, 90);
+rimLight.position.set(-20,18,-16);
+scene.add(rimLight);
+
+/* --- arena floor + circular grid --- */
+const ARENA_R = 15;
+const floorGeo = new THREE.CircleGeometry(ARENA_R, 64);
+const floorMat = new THREE.MeshStandardMaterial({color:0x0a0e17, roughness:0.85, metalness:0.15});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
+
+const grid = new THREE.PolarGridHelper(ARENA_R, 16, 8, 64, 0x1c2740, 0x141a26);
+scene.add(grid);
+
+const wallGeo = new THREE.RingGeometry(ARENA_R-0.15, ARENA_R+0.15, 64);
+const wallMat = new THREE.MeshBasicMaterial({color:0x4ce6da, transparent:true, opacity:0.35, side:THREE.DoubleSide});
+const wallRing = new THREE.Mesh(wallGeo, wallMat);
+wallRing.rotation.x = -Math.PI/2;
+wallRing.position.y = 0.02;
+scene.add(wallRing);
+
+/* --- real-data neuron nebula --- */
+(function buildNebula(){
+  const b = NEURON_META.bounds;
+  const cx=(b.x[0]+b.x[1])/2, cy=(b.y[0]+b.y[1])/2, cz=(b.z[0]+b.z[1])/2;
+  const spanX = b.x[1]-b.x[0], spanY = b.y[1]-b.y[0];
+  const scale = 34/Math.max(spanX,spanY);
+  const zExagg = 4.2;
+
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(NEURON_POINTS.length*3);
+  const colors = new Float32Array(NEURON_POINTS.length*3);
+  const col = new THREE.Color();
+  for(let i=0;i<NEURON_POINTS.length;i++){
+    const p = NEURON_POINTS[i];
+    const px = (p.x-cx)*scale;
+    const py = (p.z-cz)*scale*zExagg;
+    const pz = (p.y-cy)*scale;
+    positions[i*3]=px; positions[i*3+1]=py+16; positions[i*3+2]=pz-6;
+    col.set(SC_COLOR[p.sc] || '#5a6b82');
+    colors[i*3]=col.r; colors[i*3+1]=col.g; colors[i*3+2]=col.b;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  const mat = new THREE.PointsMaterial({size:0.34, vertexColors:true, transparent:true, opacity:0.75, sizeAttenuation:true, blending:THREE.AdditiveBlending, depthWrite:false});
+  const points = new THREE.Points(geo, mat);
+  scene.add(points);
+  window.__nebula = points;
+})();
+
+/* --- fly construction --- */
+function makeFly(color){
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({color, emissive:color, emissiveIntensity:0.55, roughness:0.35, metalness:0.3});
+  const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.62,16,16), bodyMat);
+  thorax.scale.set(1,0.85,1.3);
+  g.add(thorax);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32,14,14), bodyMat);
+  head.position.set(0,0.08,0.85);
+  g.add(head);
+  const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.5,14,14), bodyMat);
+  abdomen.scale.set(0.85,0.7,1.4);
+  abdomen.position.set(0,-0.02,-1.0);
+  g.add(abdomen);
+
+  const wingMat = new THREE.MeshBasicMaterial({color, transparent:true, opacity:0.28, side:THREE.DoubleSide});
+  const wingGeo = new THREE.PlaneGeometry(1.5,0.7);
+  const wingL = new THREE.Mesh(wingGeo, wingMat);
+  wingL.position.set(0.55,0.25,0.1); wingL.rotation.y=0.3;
+  const wingR = new THREE.Mesh(wingGeo, wingMat);
+  wingR.position.set(-0.55,0.25,0.1); wingR.rotation.y=-0.3;
+  g.add(wingL,wingR);
+
+  const glow = new THREE.PointLight(color, 0.9, 6);
+  glow.position.set(0,0.4,0);
+  g.add(glow);
+
+  g.userData = {wingL,wingR,bodyMat};
+  g.position.y = 1.1;
+  scene.add(g);
+  return g;
+}
+const meshA = makeFly(COLOR_A);
+const meshB = makeFly(COLOR_B);
+
+/* ---------------------- Fly agent state/physics ---------------------- */
+function newAgent(brain){
+  return {
+    brain, x:0, z:0, heading:0, speed:0,
+    hp:100, energy:100, lungeT:0, lungeCd:0,
+    dmgDealt:0, dmgTaken:0, survT:0
+  };
+}
+let genA=1, genB=1, winsA=0, winsB=0, duelCount=0, streak={who:null,n:0};
+let agentA = newAgent(new Brain());
+let agentB = newAgent(new Brain());
+const fitnessHistory = []; // {a,b}
+
+function resetPositions(){
+  agentA.x=-6; agentA.z=0; agentA.heading=0; agentA.hp=100; agentA.energy=100;
+  agentA.lungeT=0; agentA.lungeCd=0; agentA.dmgDealt=0; agentA.dmgTaken=0; agentA.survT=0;
+  agentB.x=6; agentB.z=0; agentB.heading=Math.PI; agentB.hp=100; agentB.energy=100;
+  agentB.lungeT=0; agentB.lungeCd=0; agentB.dmgDealt=0; agentB.dmgTaken=0; agentB.survT=0;
+}
+resetPositions();
+
+const MAX_SPEED=6.2, TURN_RATE=3.4, LUNGE_SPEED=13, LUNGE_DUR=0.22, LUNGE_CD=1.1, HIT_R=1.5;
+
+function computeInputs(self, foe){
+  const dx=foe.x-self.x, dz=foe.z-self.z;
+  const dist = Math.hypot(dx,dz);
+  const angTo = Math.atan2(dx,dz) - self.heading;
+  const angNorm = Math.atan2(Math.sin(angTo), Math.cos(angTo))/Math.PI;
+  const distNorm = Math.min(dist/20,1);
+  const distFromCenter = Math.hypot(self.x,self.z);
+  const wallProx = Math.min(distFromCenter/ARENA_R,1);
+  return [
+    1-distNorm,
+    angNorm,
+    self.hp/100,
+    foe.hp/100,
+    foe.lungeT>0 ? 1 : -1,
+    wallProx,
+    self.energy/100
+  ];
+}
+
+function stepAgent(self, foe, dt){
+  self.survT += dt;
+  if(self.lungeCd>0) self.lungeCd -= dt;
+  if(self.lungeT>0) self.lungeT -= dt;
+  self.energy = Math.min(100, self.energy + dt*4);
+
+  const inputs = computeInputs(self, foe);
+  const out = self.brain.forward(inputs);
+  const [turnOut, thrustOut, strikeOut] = out;
+
+  self.heading += turnOut * TURN_RATE * dt;
+
+  const lunging = self.lungeT>0;
+  let spd;
+  if(lunging){ spd = LUNGE_SPEED; }
+  else{
+    spd = Math.max(0,thrustOut) * MAX_SPEED;
+    if(strikeOut>0.45 && self.lungeCd<=0 && self.energy>14){
+      self.lungeT = LUNGE_DUR; self.lungeCd = LUNGE_CD; self.energy -= 14;
+      spd = LUNGE_SPEED;
+    }
+  }
+  self.speed = spd;
+  self.x += Math.sin(self.heading)*spd*dt;
+  self.z += Math.cos(self.heading)*spd*dt;
+
+  const distC = Math.hypot(self.x,self.z);
+  if(distC > ARENA_R-0.8){
+    const k = (ARENA_R-0.8)/distC;
+    self.x*=k; self.z*=k;
+    self.heading += Math.PI*0.18;
+  }
+}
+
+function resolveCombat(dt){
+  const dx=agentB.x-agentA.x, dz=agentB.z-agentA.z;
+  const dist = Math.hypot(dx,dz);
+  if(dist < HIT_R){
+    const aL = agentA.lungeT>0, bL = agentB.lungeT>0;
+    if(aL && !bL){ const d=18*dt*5; agentB.hp-=d; agentA.dmgDealt+=d; agentB.dmgTaken+=d; }
+    else if(bL && !aL){ const d=18*dt*5; agentA.hp-=d; agentB.dmgDealt+=d; agentA.dmgTaken+=d; }
+    else if(aL && bL){ const d=9*dt*5; agentA.hp-=d; agentB.hp-=d; agentA.dmgDealt+=d; agentB.dmgDealt+=d; agentA.dmgTaken+=d; agentB.dmgTaken+=d; }
+  }
+  agentA.hp = Math.max(0,Math.min(100,agentA.hp));
+  agentB.hp = Math.max(0,Math.min(100,agentB.hp));
+}
+
+/* ---------------------- Duel state machine ---------------------- */
+let duelState = 'idle'; // idle | running | ended
+let duelClock = 0;
+const DUEL_TIMEOUT = 22;
+let speedMult = 1;
+let autoRun = false;
+let inspecting = 'A';
+
+function startDuel(){
+  resetPositions();
+  duelState='running'; duelClock=0;
+  document.getElementById('banner').classList.remove('show');
+  document.getElementById('statePill').textContent='duel in progress';
+  document.getElementById('btnNext').textContent='Duel running…';
+  document.getElementById('btnNext').disabled = true;
+}
+
+function endDuel(){
+  duelState='ended';
+  duelCount++;
+  let winner;
+  if(agentA.hp<=0 && agentB.hp>0) winner='B';
+  else if(agentB.hp<=0 && agentA.hp>0) winner='A';
+  else winner = (agentA.hp+agentA.dmgDealt*0.3) >= (agentB.hp+agentB.dmgDealt*0.3) ? 'A':'B';
+
+  if(winner==='A'){ winsA++; genB++; agentB.brain = Brain.crossover(agentA.brain, agentB.brain); agentB.brain.mutate(mutRate); }
+  else{ winsB++; genA++; agentA.brain = Brain.crossover(agentB.brain, agentA.brain); agentA.brain.mutate(mutRate); }
+
+  if(streak.who===winner) streak.n++; else { streak.who=winner; streak.n=1; }
+
+  fitnessHistory.push({a: agentA.dmgDealt + agentA.hp*0.5, b: agentB.dmgDealt + agentB.hp*0.5});
+  if(fitnessHistory.length>40) fitnessHistory.shift();
+
+  const bannerEl = document.getElementById('banner');
+  document.getElementById('bannerText').textContent = 'Lineage ' + winner + ' wins';
+  document.getElementById('bannerText').style.color = winner==='A' ? '#4ce6da' : '#ff5fc4';
+  document.getElementById('bannerSub').textContent = 'crossover + mutation applied to the loser\u2019s net \u2014 evolving next generation';
+  bannerEl.classList.add('show');
+
+  document.getElementById('statePill').textContent='duel ended';
+  const btn = document.getElementById('btnNext');
+  btn.disabled = false;
+  btn.textContent = autoRun ? 'Auto-running…' : 'Next duel';
+
+  refreshStaticPanels();
+
+  if(autoRun){
+    setTimeout(()=>{ if(autoRun) startDuel(); }, 1000/speedMult);
+  }
+}
+
+/* ---------------------- UI wiring ---------------------- */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.panel).classList.add('active');
+  });
+});
+
+const btnNext = document.getElementById('btnNext');
+btnNext.addEventListener('click', ()=>{ if(duelState!=='running') startDuel(); });
+
+const toggleAuto = document.getElementById('toggleAuto');
+toggleAuto.addEventListener('click', ()=>{
+  autoRun = !autoRun;
+  toggleAuto.classList.toggle('on', autoRun);
+  if(autoRun && duelState!=='running'){ startDuel(); }
+  if(!autoRun && duelState==='ended'){ btnNext.textContent='Next duel'; }
+});
+
+let mutRate = 12;
+const rngMut = document.getElementById('rngMut');
+rngMut.addEventListener('input', ()=>{ mutRate = +rngMut.value; document.getElementById('valMut').textContent = mutRate+'%'; document.getElementById('statMut').textContent = mutRate+'%'; });
+
+const rngSpeed = document.getElementById('rngSpeed');
+rngSpeed.addEventListener('input', ()=>{ speedMult = +rngSpeed.value; document.getElementById('valSpeed').textContent = speedMult.toFixed(2)+'×'; });
+
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  genA=1; genB=1; winsA=0; winsB=0; duelCount=0; streak={who:null,n:0};
+  agentA = newAgent(new Brain()); agentB = newAgent(new Brain());
+  fitnessHistory.length=0;
+  duelState='idle'; autoRun=false; toggleAuto.classList.remove('on');
+  document.getElementById('banner').classList.remove('show');
+  document.getElementById('statePill').textContent='idle';
+  btnNext.disabled=false; btnNext.textContent='Start duel';
+  refreshStaticPanels();
+});
+
+document.getElementById('btnInspA').addEventListener('click', ()=>{
+  inspecting='A';
+  document.getElementById('btnInspA').classList.add('active');
+  document.getElementById('btnInspA').style.cssText='color:#05070c;background:var(--ach);';
+  document.getElementById('btnInspB').classList.remove('active');
+  document.getElementById('btnInspB').style.cssText='';
+});
+document.getElementById('btnInspB').addEventListener('click', ()=>{
+  inspecting='B';
+  document.getElementById('btnInspB').classList.add('active');
+  document.getElementById('btnInspB').style.cssText='color:#05070c;background:var(--gaba);';
+  document.getElementById('btnInspA').classList.remove('active');
+  document.getElementById('btnInspA').style.cssText='';
+});
+
+/* camera drag */
+let dragging=false, lastX=0, lastY=0;
+holder.addEventListener('pointerdown', e=>{dragging=true; lastX=e.clientX; lastY=e.clientY;});
+window.addEventListener('pointerup', ()=>dragging=false);
+window.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  camAz -= (e.clientX-lastX)*0.006;
+  camEl = Math.max(0.12, Math.min(1.1, camEl + (e.clientY-lastY)*0.005));
+  lastX=e.clientX; lastY=e.clientY;
+  updateCamera();
+});
+holder.addEventListener('wheel', e=>{
+  camDist = Math.max(22, Math.min(90, camDist + e.deltaY*0.03));
+  updateCamera();
+  e.preventDefault();
+}, {passive:false});
+
+/* ---------------------- Static panel builders ---------------------- */
+function buildBars(container, entries, colorFn, maxVal){
+  container.innerHTML='';
+  entries.forEach(([label,val])=>{
+    const pct = Math.round((val/maxVal)*100);
+    const row = document.createElement('div');
+    row.className='bar-row';
+    row.innerHTML = `<div class="lbl"><span>${label}</span><b>${val.toLocaleString()}</b></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${colorFn(label)}"></div></div>`;
+    container.appendChild(row);
+  });
+}
+
+function refreshStaticPanels(){
+  document.getElementById('winA').textContent = winsA;
+  document.getElementById('winB').textContent = winsB;
+  document.getElementById('genA').textContent = 'gen '+genA;
+  document.getElementById('genB').textContent = 'gen '+genB;
+  document.getElementById('duelCount').textContent = duelCount;
+  document.getElementById('streak').textContent = streak.who ? (streak.who+' ×'+streak.n) : '—';
+  document.getElementById('statGenA').textContent = genA;
+  document.getElementById('statGenB').textContent = genB;
+  document.getElementById('statDuels').textContent = duelCount;
+
+  const sc = NEURON_META.super_class_counts;
+  const scEntries = Object.entries(sc).sort((a,b)=>b[1]-a[1]);
+  buildBars(document.getElementById('superClassBars'), scEntries, l=>SC_COLOR[l]||'#5a6b82', scEntries[0][1]);
+
+  const nt = NEURON_META.nt_counts;
+  const ntEntries = Object.entries(nt).sort((a,b)=>b[1]-a[1]);
+  buildBars(document.getElementById('ntBars'), ntEntries, l=>PALETTE[l]||'#5a6b82', ntEntries[0][1]);
+
+  const sensEl = document.getElementById('sensoryList');
+  sensEl.innerHTML='';
+  INPUT_LABELS.forEach(l=>{
+    const row=document.createElement('div');
+    row.className='neuron-row';
+    row.innerHTML = `<div><div class="tag">${l.tag}</div><div class="fn">${l.fn}</div></div><div class="cnt">${l.cnt} cells</div>`;
+    sensEl.appendChild(row);
+  });
+  const motEl = document.getElementById('motorList');
+  motEl.innerHTML='';
+  OUTPUT_LABELS.forEach(l=>{
+    const row=document.createElement('div');
+    row.className='neuron-row';
+    row.innerHTML = `<div><div class="tag">${l.tag}</div><div class="fn">${l.fn}</div></div><div class="cnt">${l.cnt} cells</div>`;
+    motEl.appendChild(row);
+  });
+
+  const inBars = document.getElementById('inputBars');
+  inBars.innerHTML='';
+  INPUT_LABELS.forEach((l,i)=>{
+    const row=document.createElement('div'); row.className='bar-row';
+    row.innerHTML = `<div class="lbl"><span>${l.fn} <span class="mono" style="color:var(--text-faint)">(${l.tag})</span></span><b id="inVal${i}">0.00</b></div>
+      <div class="bar-track"><div class="bar-fill" id="inBar${i}" style="width:50%;background:var(--ach);"></div></div>`;
+    inBars.appendChild(row);
+  });
+  const outBars = document.getElementById('outputBars');
+  outBars.innerHTML='';
+  OUTPUT_LABELS.forEach((l,i)=>{
+    const row=document.createElement('div'); row.className='bar-row';
+    row.innerHTML = `<div class="lbl"><span>${l.fn} <span class="mono" style="color:var(--text-faint)">(${l.tag})</span></span><b id="outVal${i}">0.00</b></div>
+      <div class="bar-track"><div class="bar-fill" id="outBar${i}" style="width:50%;background:var(--gaba);"></div></div>`;
+    outBars.appendChild(row);
+  });
+
+  document.getElementById('tagNeuronCount').textContent = NEURON_META.total_neurons.toLocaleString();
+}
+refreshStaticPanels();
+
+/* ---------------------- Canvas mini-charts ---------------------- */
+const hiddenCanvas = document.getElementById('hiddenCanvas');
+const hctx = hiddenCanvas.getContext('2d');
+const fitCanvas = document.getElementById('fitnessCanvas');
+const fctx = fitCanvas.getContext('2d');
+
+function fitCanvasSize(cv){
+  const rect = cv.getBoundingClientRect();
+  if(rect.width>0){ cv.width = rect.width*2; cv.height = cv.height ? cv.height : 90*2; }
+}
+
+function drawHidden(){
+  const rect = hiddenCanvas.getBoundingClientRect();
+  if(rect.width<10) return;
+  hiddenCanvas.width = rect.width*2; hiddenCanvas.height = 120*2;
+  hctx.setTransform(1,0,0,1,0,0);
+  hctx.clearRect(0,0,hiddenCanvas.width,hiddenCanvas.height);
+  const brain = inspecting==='A' ? agentA.brain : agentB.brain;
+  const act = brain.hiddenAct;
+  const n = act.length;
+  const w = hiddenCanvas.width/n;
+  const color = inspecting==='A' ? '#4ce6da' : '#ff5fc4';
+  for(let i=0;i<n;i++){
+    const v = (act[i]+1)/2;
+    const h = v*hiddenCanvas.height*0.9;
+    hctx.fillStyle = color;
+    hctx.globalAlpha = 0.25+v*0.65;
+    hctx.fillRect(i*w+w*0.18, hiddenCanvas.height-h, w*0.64, h);
+  }
+  hctx.globalAlpha=1;
+}
+
+function drawFitness(){
+  const rect = fitCanvas.getBoundingClientRect();
+  if(rect.width<10) return;
+  fitCanvas.width = rect.width*2; fitCanvas.height = 90*2;
+  fctx.setTransform(1,0,0,1,0,0);
+  fctx.clearRect(0,0,fitCanvas.width,fitCanvas.height);
+  if(fitnessHistory.length<2) return;
+  const maxV = Math.max(1,...fitnessHistory.map(f=>Math.max(f.a,f.b)));
+  const n = fitnessHistory.length;
+  const stepX = fitCanvas.width/(n-1);
+  function line(key,color){
+    fctx.beginPath();
+    fitnessHistory.forEach((f,i)=>{
+      const x=i*stepX, y=fitCanvas.height - (f[key]/maxV)*fitCanvas.height*0.88 - 6;
+      if(i===0) fctx.moveTo(x,y); else fctx.lineTo(x,y);
+    });
+    fctx.strokeStyle=color; fctx.lineWidth=3; fctx.stroke();
+  }
+  line('a','#4ce6da'); line('b','#ff5fc4');
+}
+
+/* ---------------------- Main loop ---------------------- */
+let lastT = performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  const dtReal = Math.min((now-lastT)/1000, 0.05);
+  lastT = now;
+  const dt = dtReal*speedMult;
+
+  if(duelState==='running'){
+    duelClock += dt;
+    stepAgent(agentA, agentB, dt);
+    stepAgent(agentB, agentA, dt);
+    resolveCombat(dt);
+    if(agentA.hp<=0 || agentB.hp<=0 || duelClock>DUEL_TIMEOUT){ endDuel(); }
+  }
+
+  meshA.position.x = agentA.x; meshA.position.z = agentA.z;
+  meshA.rotation.y = agentA.heading;
+  meshB.position.x = agentB.x; meshB.position.z = agentB.z;
+  meshB.rotation.y = agentB.heading;
+  const flap = Math.sin(now*0.04)*0.5;
+  meshA.userData.wingL.rotation.z = 0.3+flap; meshA.userData.wingR.rotation.z=-0.3-flap;
+  meshB.userData.wingL.rotation.z = 0.3+flap; meshB.userData.wingR.rotation.z=-0.3-flap;
+  meshA.userData.bodyMat.emissiveIntensity = agentA.lungeT>0 ? 1.6 : 0.55;
+  meshB.userData.bodyMat.emissiveIntensity = agentB.lungeT>0 ? 1.6 : 0.55;
+
+  if(window.__nebula) window.__nebula.rotation.y += 0.0006*dtReal*60;
+
+  document.getElementById('hpA').style.width = agentA.hp+'%';
+  document.getElementById('hpB').style.width = agentB.hp+'%';
+  document.getElementById('enA').textContent = Math.round(agentA.energy);
+  document.getElementById('enB').textContent = Math.round(agentB.energy);
+  document.getElementById('fDamage').textContent = `A ${agentA.dmgDealt.toFixed(0)} · B ${agentB.dmgDealt.toFixed(0)}`;
+  document.getElementById('fAvoid').textContent = `A ${(100-agentA.dmgTaken).toFixed(0)} · B ${(100-agentB.dmgTaken).toFixed(0)}`;
+  document.getElementById('fTime').textContent = duelClock.toFixed(1)+'s';
+
+  const insp = inspecting==='A' ? agentA : agentB;
+  const inputs = computeInputs(insp, inspecting==='A'?agentB:agentA);
+  inputs.forEach((v,i)=>{
+    const el = document.getElementById('inVal'+i);
+    const bar = document.getElementById('inBar'+i);
+    if(el){ el.textContent=v.toFixed(2); bar.style.width=(Math.abs(v)*50+10)+'%'; }
+  });
+  const outs = insp.brain.outAct;
+  outs.forEach((v,i)=>{
+    const el = document.getElementById('outVal'+i);
+    const bar = document.getElementById('outBar'+i);
+    if(el){ el.textContent=v.toFixed(2); bar.style.width=((v+1)/2*90+10)+'%'; }
+  });
+
+  drawHidden();
+  drawFitness();
+
+  renderer.render(scene, camera);
+}
+
+resize();
+requestAnimationFrame(animate);
+window.addEventListener('resize', ()=>{ resize(); });
+
+})();
+
+</script>
+</body>
+</html>
